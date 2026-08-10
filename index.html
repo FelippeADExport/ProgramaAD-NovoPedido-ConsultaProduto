@@ -5,25 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>AD Export — Pedidos</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1a1a2e">
+<meta name="theme-color" content="#2e2c2c">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
 <header class="topbar">
-  <div class="topbar-brand">AD EXPORT</div>
+  <div class="topbar-left">
+    <div class="topbar-logo">AD EXPORT</div>
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="pedido">✦ Novo Pedido</button>
+      <button class="tab-btn locked" onclick="abrirRecursoOnline('Todos os Pedidos')">☰ Todos os Pedidos <span>🔒</span></button>
+      <button class="tab-btn" data-tab="consulta">🔍 Consulta Produto</button>
+      <button class="tab-btn locked" onclick="abrirRecursoOnline('Consulta Cliente')">👥 Consulta Cliente <span>🔒</span></button>
+      <button class="tab-btn locked" onclick="abrirRecursoOnline('Catálogo PDF')">📄 Catálogo PDF <span>🔒</span></button>
+      <button class="tab-btn locked" onclick="abrirRecursoOnline('Configurações')">⚙️ Configurações <span>🔒</span></button>
+    </nav>
+  </div>
   <div class="topbar-right">
-    <span id="status-conexao" class="status-online">● Online</span>
+    <span id="status-conexao" class="status-dot status-online">● Online</span>
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+      <span id="themeIcon">☀️</span><span id="themeLabel">Claro</span>
+    </button>
+    <button class="btn-refresh" id="btn-atualizar-dados">↻ Atualizar dados</button>
   </div>
 </header>
 
+<div class="tabs-legenda">🔒 = precisa de internet · Novo Pedido e Consulta Produto funcionam offline</div>
 <div id="badge-pendentes" class="badge-pendentes hidden"></div>
 
 <div class="sync-bar">
-  <button id="btn-atualizar-dados" class="btn btn-secondary">⟳ Atualizar dados</button>
   <span id="ultima-sync-texto" class="sync-texto"></span>
   <div id="sync-progresso" class="sync-progresso hidden">
     <div class="sync-barra"><div id="sync-barra-interna" class="sync-barra-interna"></div></div>
@@ -31,121 +44,239 @@
   </div>
 </div>
 
-<nav class="tabs">
-  <button class="tab-btn" data-tab="pedido">Novo Pedido</button>
-  <button class="tab-btn tab-online" onclick="abrirRecursoOnline('Todos os Pedidos')">Todos os Pedidos <span class="lock">🔒</span></button>
-  <button class="tab-btn active" data-tab="consulta">Consulta Produto</button>
-  <button class="tab-btn tab-online" onclick="abrirRecursoOnline('Consulta Cliente')">Consulta Cliente <span class="lock">🔒</span></button>
-  <button class="tab-btn tab-online" onclick="abrirRecursoOnline('Catálogo PDF')">Catálogo PDF <span class="lock">🔒</span></button>
-  <button class="tab-btn tab-online" onclick="abrirRecursoOnline('Configurações')">Configurações <span class="lock">🔒</span></button>
-</nav>
-<div class="tabs-legenda">🔒 = precisa de internet · as demais funcionam offline</div>
+<!-- ===================== NOVO PEDIDO ===================== -->
+<div id="tab-pedido" class="tab-content active">
+  <div class="main">
+    <div class="page-title">✦ Novo Pedido</div>
+    <div class="page-sub">Pedido <strong id="numeroPedidoNovo">—</strong></div>
 
-<main>
-
-  <!-- ===================== CONSULTA PRODUTO ===================== -->
-  <section id="tab-consulta" class="tab-pane active">
-    <div class="cp-filtros">
-      <input type="text" id="cp-busca" placeholder="Buscar por código, nome, linha ou cor...">
-      <select id="cp-filtro-linha"><option value="">Linha</option></select>
-      <select id="cp-filtro-formato"><option value="">Formato</option></select>
-      <select id="cp-filtro-cor"><option value="">Cor</option></select>
-    </div>
-    <div id="cp-contagem" class="cp-contagem"></div>
-    <div id="cp-grid" class="cp-grid"></div>
-  </section>
-
-  <!-- ===================== NOVO PEDIDO ===================== -->
-  <section id="tab-pedido" class="tab-pane">
-    <div class="np-header">
-      <div>Pedido <strong id="numeroPedidoNovo">—</strong></div>
-    </div>
-
-    <div class="card">
-      <h3>Cliente</h3>
-      <div class="autocomplete-wrap">
-        <input type="text" id="np-cliente-busca" placeholder="Buscar cliente por nome..." oninput="buscarClientesUI()">
-        <div class="autocomplete-list hidden" id="np-cliente-lista"></div>
-      </div>
-      <div id="np-cliente-selecionado" class="np-cliente-selecionado hidden"></div>
-
-      <div id="np-cliente-form-novo" class="hidden mt-8">
-        <div class="grid grid-2">
-          <div><label>Nome *</label><input type="text" id="ncNome"></div>
-          <div><label>Contato</label><input type="text" id="ncContato"></div>
-          <div><label>Endereço</label><input type="text" id="ncEndereco"></div>
-          <div><label>Complemento</label><input type="text" id="ncComplemento"></div>
-          <div><label>Cidade</label><input type="text" id="ncCidade"></div>
-          <div><label>Província/Estado</label><input type="text" id="ncProvincia"></div>
-          <div><label>País</label><input type="text" id="ncPais"></div>
-          <div><label>CEP</label><input type="text" id="ncCep"></div>
-          <div><label>Telefone</label><input type="text" id="ncTelefone"></div>
-          <div><label>Email</label><input type="text" id="ncEmail"></div>
+    <div class="section">
+      <div class="section-header"><div class="section-title">Cliente</div></div>
+      <div class="section-body">
+        <div class="autocomplete-wrap">
+          <input type="text" id="np-cliente-busca" placeholder="Buscar cliente por nome..." oninput="buscarClientesUI()">
+          <div class="autocomplete-list hidden" id="np-cliente-lista"></div>
         </div>
-        <button type="button" class="btn btn-primary mt-8" onclick="salvarClienteNovoESelecionar()">Salvar cliente</button>
+        <div id="np-cliente-selecionado" class="cliente-selecionado hidden"></div>
+
+        <div id="np-cliente-form-novo" class="hidden mt-12">
+          <div class="grid grid-2">
+            <div><label>Nome *</label><input type="text" id="ncNome"></div>
+            <div><label>Contato</label><input type="text" id="ncContato"></div>
+            <div><label>Endereço</label><input type="text" id="ncEndereco"></div>
+            <div><label>Complemento</label><input type="text" id="ncComplemento"></div>
+            <div><label>Cidade</label><input type="text" id="ncCidade"></div>
+            <div><label>Província/Estado</label><input type="text" id="ncProvincia"></div>
+            <div><label>País</label><input type="text" id="ncPais"></div>
+            <div><label>CEP</label><input type="text" id="ncCep"></div>
+            <div><label>Telefone</label><input type="text" id="ncTelefone"></div>
+            <div><label>Email</label><input type="text" id="ncEmail"></div>
+          </div>
+          <button type="button" class="btn btn-primary mt-12" onclick="salvarClienteNovoESelecionar()">Salvar cliente</button>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <h3>Tabela de preço e frete</h3>
-      <div class="btn-group">
-        <button type="button" id="np-btn-fob" class="btn-toggle active" onclick="setPrice('FOB')">FOB</button>
-        <button type="button" id="np-btn-exw" class="btn-toggle" onclick="setPrice('EXW')">EXW</button>
-      </div>
-      <div class="btn-group mt-8">
-        <button type="button" id="np-btn-maritimo" class="btn-toggle active" onclick="setFrete('maritimo')">🚢 Marítimo</button>
-        <button type="button" id="np-btn-rodoviario" class="btn-toggle" onclick="setFrete('rodoviario')">🚛 Rodoviário</button>
-      </div>
-      <div id="np-porto-maritimo" class="mt-8">
-        <label>Porto de destino</label>
-        <select id="np-porto-select"></select>
-        <label class="mt-8">Porto/cidade de chegada final</label>
-        <input type="text" id="np-porto-chegada" placeholder="opcional">
-      </div>
-      <div id="np-porto-rodoviario" class="mt-8 hidden">
-        <div class="rodoviario-origem">Origem fixa: <strong>CRICIÚMA — SC</strong></div>
+    <div class="section">
+      <div class="section-header"><div class="section-title">Tabela de preço e frete</div></div>
+      <div class="section-body">
+        <div class="price-toggle">
+          <button type="button" id="np-btn-fob" class="price-btn active" onclick="setPrice('FOB')">FOB</button>
+          <button type="button" id="np-btn-exw" class="price-btn" onclick="setPrice('EXW')">EXW</button>
+        </div>
+        <div class="price-toggle mt-8">
+          <button type="button" id="np-btn-maritimo" class="price-btn active" onclick="setFrete('maritimo')">🚢 Marítimo</button>
+          <button type="button" id="np-btn-rodoviario" class="price-btn" onclick="setFrete('rodoviario')">🚛 Rodoviário</button>
+        </div>
+        <div id="np-porto-maritimo" class="mt-12">
+          <label>Porto de destino</label>
+          <select id="np-porto-select"></select>
+          <label class="mt-8">Porto/cidade de chegada final</label>
+          <input type="text" id="np-porto-chegada" placeholder="opcional">
+        </div>
+        <div id="np-porto-rodoviario" class="mt-12 hidden">
+          <div class="rodoviario-origem">Origem fixa: CRICIÚMA — SC</div>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <h3>Itens do pedido</h3>
-      <div id="np-itens-lista"></div>
-      <button type="button" class="btn btn-secondary mt-8" onclick="adicionarItem()">+ Adicionar item</button>
+    <div class="section">
+      <div class="section-header"><div class="section-title">Itens do pedido</div></div>
+      <div class="section-body">
+        <div id="np-itens-lista"></div>
+        <button type="button" class="btn btn-secondary mt-8" onclick="adicionarItem()">+ Adicionar item</button>
+      </div>
     </div>
 
-    <div class="card">
-      <h3>Resumo</h3>
-      <table class="tabela-resumo">
-        <thead><tr><th>#</th><th>Produto</th><th>Unid.</th><th>Qtd</th><th>Total</th><th>Peso</th></tr></thead>
-        <tbody id="np-resumo-tabela"></tbody>
-      </table>
-      <div class="np-totais">
-        <div><label>Subtotal</label><span id="np-subtotal">US$ 0,00</span></div>
+    <div class="section">
+      <div class="section-header"><div class="section-title">Resumo</div></div>
+      <div class="section-body">
+        <table class="tabela-resumo">
+          <thead><tr><th>#</th><th>Produto</th><th>Unid.</th><th>Qtd</th><th>Total</th><th>Peso</th></tr></thead>
+          <tbody id="np-resumo-tabela"></tbody>
+        </table>
+        <div class="np-totais">
+          <div><label style="margin:0">Subtotal</label><span id="np-subtotal">US$ 0,00</span></div>
+          <div>
+            <label style="margin:0">Desconto (%)</label>
+            <input type="number" id="np-desconto" min="0" max="100" step="0.1" value="0" oninput="atualizarResumoPedido()">
+            <span id="np-desconto-valor">— US$ 0,00</span>
+          </div>
+          <div class="np-total-final"><span>Total</span><span id="np-total">US$ 0,00</span></div>
+        </div>
+        <label class="mt-12">Observações</label>
+        <textarea id="np-observacoes" rows="3"></textarea>
+        <button type="button" class="btn btn-primary btn-full mt-12" onclick="salvarPedidoAtual()">Salvar pedido</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CONSULTA PRODUTO ===================== -->
+<div id="tab-consulta" class="tab-content">
+  <div class="main">
+    <div class="page-title">🔍 Consulta Produto</div>
+    <div class="page-sub">Selecione o formato e produto ou digite o código para consultar as especificações</div>
+
+    <div class="section">
+      <div class="section-body">
+        <div class="grid grid-3">
+          <div>
+            <label>Formato</label>
+            <select id="cns-formato" onchange="cnsOnFormatoChange()"><option value="">Selecione...</option></select>
+          </div>
+          <div>
+            <label>Nome do Produto</label>
+            <select id="cns-nome" onchange="cnsOnNomeChange()" disabled><option value="">Selecione formato primeiro</option></select>
+          </div>
+          <div>
+            <label>Código</label>
+            <div class="autocomplete-wrap">
+              <input type="text" id="cns-codigo" placeholder="Digite o código..." oninput="cnsOnCodigoInput()">
+              <div class="autocomplete-list hidden" id="cns-codigo-dd"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="cns-resultado" class="cns-resultado">
+      <div class="cns-grid">
         <div>
-          <label>Desconto (%)</label>
-          <input type="number" id="np-desconto" min="0" max="100" step="0.1" value="0" oninput="atualizarResumoPedido()">
-          <span id="np-desconto-valor">— US$ 0,00</span>
+          <div class="cns-foto-wrap" id="cns-foto-wrap" onclick="cnsAbrirZoom()">
+            <img id="cns-foto" style="display:none">
+            <div class="cns-foto-placeholder" id="cns-foto-placeholder">📦</div>
+          </div>
+          <div class="cns-thumbs" id="cns-thumbs"></div>
         </div>
-        <div class="np-total-final"><label>Total</label><span id="np-total">US$ 0,00</span></div>
+
+        <div>
+          <div class="info-card">
+            <div class="info-card-title">Identificação</div>
+            <div class="spec-grid">
+              <div><div class="spec-label">Formato</div><div class="spec-value accent" id="cns-r-formato">—</div></div>
+              <div><div class="spec-label">Código</div><div class="spec-value" id="cns-r-codigo">—</div></div>
+              <div><div class="spec-label">Cód. de Barras</div><div class="spec-value small" id="cns-r-barcode">—</div></div>
+              <div><div class="spec-label">Referência</div><div class="spec-value small" id="cns-r-nome">—</div></div>
+            </div>
+          </div>
+          <div class="info-card">
+            <div class="info-card-title">Características</div>
+            <div class="spec-grid">
+              <div><div class="spec-label">Face</div><div class="spec-value small" id="cns-r-face">—</div></div>
+              <div><div class="spec-label">Local de Uso</div><div class="spec-value small" id="cns-r-local">—</div></div>
+              <div><div class="spec-label">V.T</div><div class="spec-value small" id="cns-r-vt">—</div></div>
+              <div><div class="spec-label">Espessura</div><div class="spec-value small" id="cns-r-thick">—</div></div>
+            </div>
+          </div>
+        </div>
       </div>
-      <label class="mt-8">Observações</label>
-      <textarea id="np-observacoes" rows="3"></textarea>
-      <button type="button" class="btn btn-primary btn-full mt-12" onclick="salvarPedidoAtual()">Salvar pedido</button>
+
+      <div class="packing-title">📦 Informações de Packing List</div>
+
+      <div class="packing-badge">🏭 PALLET AMERICANO</div>
+      <div class="packing-grid">
+        <div class="packing-box"><div class="packing-box-title">📦 Caixa</div>
+          <div class="packing-row"><span>Peças</span><span id="cns-cx-pecas">—</span></div>
+          <div class="packing-row"><span>m²</span><span id="cns-cx-sqmt">—</span></div>
+          <div class="packing-row"><span>Peso (kg)</span><span id="cns-cx-peso">—</span></div>
+        </div>
+        <div class="packing-box"><div class="packing-box-title">🪨 Pallet</div>
+          <div class="packing-row"><span>Caixas</span><span id="cns-pal-caixas">—</span></div>
+          <div class="packing-row"><span>m²</span><span id="cns-pal-sqmt">—</span></div>
+          <div class="packing-row"><span>Peso (kg)</span><span id="cns-pal-peso">—</span></div>
+        </div>
+        <div class="packing-box"><div class="packing-box-title">🚢 Container</div>
+          <div class="packing-row"><span>Caixas</span><span id="cns-con-caixas">—</span></div>
+          <div class="packing-row"><span>Pallets</span><span id="cns-con-pallets">—</span></div>
+          <div class="packing-row"><span>m²</span><span id="cns-con-sqmt">—</span></div>
+          <div class="packing-row"><span>Peso (kg)</span><span id="cns-con-peso">—</span></div>
+        </div>
+      </div>
+
+      <div class="packing-badge euro">🌍 EURO PALLET</div>
+      <div class="packing-grid">
+        <div class="packing-box"><div class="packing-box-title">📦 Caixa</div>
+          <div class="packing-row"><span>Peças</span><span id="cns-euro-cx-pecas">—</span></div>
+          <div class="packing-row"><span>m²</span><span id="cns-euro-cx-sqmt">—</span></div>
+          <div class="packing-row"><span>Peso (kg)</span><span id="cns-euro-cx-peso">—</span></div>
+        </div>
+        <div class="packing-box"><div class="packing-box-title">🪨 Pallet</div>
+          <div class="packing-row"><span>Caixas</span><span id="cns-euro-pal-caixas">—</span></div>
+          <div class="packing-row"><span>m²</span><span id="cns-euro-pal-sqmt">—</span></div>
+          <div class="packing-row"><span>Peso (kg)</span><span id="cns-euro-pal-peso">—</span></div>
+        </div>
+        <div class="packing-box"><div class="packing-box-title">🚢 Container</div>
+          <div class="packing-row"><span>Caixas</span><span id="cns-euro-con-caixas">—</span></div>
+          <div class="packing-row"><span>Pallets</span><span id="cns-euro-con-pallets">—</span></div>
+          <div class="packing-row"><span>m²</span><span id="cns-euro-con-sqmt">—</span></div>
+          <div class="packing-row"><span>Peso (kg)</span><span id="cns-euro-con-peso">—</span></div>
+        </div>
+      </div>
     </div>
-  </section>
 
-</main>
+    <div id="cns-empty" class="empty-state">
+      <div class="icon">🔍</div>
+      <div class="title">Selecione um produto para consultar</div>
+      <div class="sub">Use os filtros acima para encontrar o produto desejado</div>
+    </div>
 
-<!-- Modal detalhe produto -->
-<div id="modal-produto" class="modal">
-  <div class="modal-conteudo">
-    <button class="modal-fechar" onclick="fecharModalProduto()">×</button>
-    <h2 id="mp-titulo"></h2>
-    <div id="mp-corpo"></div>
+    <div class="legenda-title">📍 Legenda — Local de Uso</div>
+    <div class="legenda-grid">
+      <div class="legenda-item"><span class="legenda-codigo">LA</span><span class="legenda-desc">Paredes internas e externas cobertas.</span></div>
+      <div class="legenda-item"><span class="legenda-codigo">LB</span><span class="legenda-desc">Ambientes residenciais sem acesso para a rua, como banheiros, salas, quartos e cozinhas.</span></div>
+      <div class="legenda-item"><span class="legenda-codigo">LBI</span><span class="legenda-desc">Ambientes residenciais e comerciais sem acesso para a rua, como banheiros, salas, quartos e cozinhas.</span></div>
+      <div class="legenda-item"><span class="legenda-codigo">LC</span><span class="legenda-desc">Ambientes residenciais com e sem acesso para a rua, como banheiros, salas, quartos, cozinhas, garagens e varandas cobertas. Áreas comerciais de baixo tráfego.</span></div>
+      <div class="legenda-item"><span class="legenda-codigo">LD</span><span class="legenda-desc">Ambientes residenciais e comerciais com e sem acesso para a rua, como banheiros, salas, quartos, cozinhas, garagens e varandas.</span></div>
+      <div class="legenda-item"><span class="legenda-codigo">LE</span><span class="legenda-desc">Ambientes residenciais e comerciais com e sem acesso a rua, como banheiros, salas, quartos, cozinhas, garagens, varandas, áreas molhadas como calçadas e ambientes externos.</span></div>
+    </div>
+
+    <div class="preco-header">
+      <div class="preco-title">💲 Preços</div>
+      <label style="display:flex;align-items:center;gap:8px;margin:0;text-transform:none;cursor:pointer">
+        <span id="cns-preco-label" style="font-size:12px;color:var(--text3)">Ocultar</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="cns-preco-toggle" checked onchange="cnsTogglePreco()">
+          <span class="toggle-track"></span><span class="toggle-thumb"></span>
+        </span>
+      </label>
+    </div>
+    <div id="cns-preco-box" class="price-grid">
+      <div class="price-box"><div class="price-box-label">Preço FOB (US$)</div><div class="price-box-value" id="cns-r-fob">—</div></div>
+      <div class="price-box"><div class="price-box-label">Preço EXW (US$)</div><div class="price-box-value exw" id="cns-r-exw">—</div></div>
+    </div>
   </div>
 </div>
 
 <div id="toasts" class="toasts"></div>
+
+<!-- Modal zoom da foto -->
+<div id="modal-produto" class="modal">
+  <div class="modal-conteudo">
+    <button class="modal-fechar" onclick="fecharModalProduto()">×</button>
+    <img id="mp-foto-zoom" style="width:100%;border-radius:8px">
+  </div>
+</div>
 
 <script src="js/db.js"></script>
 <script src="js/api.js"></script>

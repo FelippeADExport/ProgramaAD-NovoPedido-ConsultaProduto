@@ -1,13 +1,16 @@
 // ============================================================
 // produtos.js — Sincronização de imagens (alta qualidade / WebP)
-// e tela de Consulta Produto
+// e tela de Consulta Produto (réplica do layout original)
 // ============================================================
 
-const IMG_MAX_LADO = 2200;   // px no lado maior — nítido em qualquer tela, inclusive com zoom
-const IMG_QUALIDADE = 0.87;  // WebP — qualidade alta, arquivo leve
-const LOTE_IMAGENS = 8;      // quantas imagens buscar por chamada à API (evita timeout no Apps Script)
+const IMG_MAX_LADO = 2200;
+const IMG_QUALIDADE = 0.87;
+const LOTE_IMAGENS = 8;
 
 let PRODUTOS = [];
+let cnsProdutoAtual = null;
+let cnsFotosAtuais = [];
+let cnsPrecoVisivel = true;
 
 function extrairFileId(url) {
   if (!url) return null;
@@ -29,7 +32,6 @@ function coletarFileIds(produtos) {
   return Array.from(ids);
 }
 
-// Redimensiona/comprime uma imagem base64 (data URL) para WebP otimizado
 function otimizarImagem(dataUrl) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -54,8 +56,6 @@ function otimizarImagem(dataUrl) {
   });
 }
 
-// Baixa e otimiza somente as imagens que ainda não estão salvas localmente.
-// Chama onProgress(feitos, total) a cada imagem processada.
 async function sincronizarImagens(produtos, onProgress) {
   const todosIds = coletarFileIds(produtos);
   const faltando = [];
@@ -74,7 +74,6 @@ async function sincronizarImagens(produtos, onProgress) {
     try {
       respostas = await API.buscarImagensLote(lote);
     } catch (e) {
-      // sem internet no meio do processo — para aqui, o que já baixou fica salvo
       throw e;
     }
     for (const fileId of lote) {
@@ -83,7 +82,7 @@ async function sincronizarImagens(produtos, onProgress) {
         try {
           const blob = await otimizarImagem(dataUrl);
           await DB.salvarImagem(fileId, blob);
-        } catch (e) { /* imagem com problema, pula */ }
+        } catch (e) { /* pula imagem com problema */ }
       }
       feitos++;
       onProgress && onProgress(feitos, total);
@@ -99,120 +98,153 @@ async function urlDaImagem(urlOriginal) {
   return URL.createObjectURL(blob);
 }
 
-// ---------------- Tela: Consulta Produto ----------------
-
 function valoresUnicos(produtos, campo) {
   return Array.from(new Set(produtos.map((p) => (p[campo] || '').trim()).filter(Boolean))).sort();
 }
 
-function filtrarProdutos(produtos, termo, filtros) {
-  const t = (termo || '').trim().toLowerCase();
-  return produtos.filter((p) => {
-    if (filtros.linha && p.linha !== filtros.linha) return false;
-    if (filtros.formato && p.formato !== filtros.formato) return false;
-    if (filtros.cor && p.cor !== filtros.cor) return false;
-    if (!t) return true;
-    return (
-      String(p.codigo).toLowerCase().includes(t) ||
-      String(p.nome).toLowerCase().includes(t) ||
-      String(p.linha).toLowerCase().includes(t) ||
-      String(p.cor).toLowerCase().includes(t)
-    );
-  });
-}
+// ---------------- Tela: Consulta Produto (dropdowns, igual ao original) ----------------
 
 function montarFiltrosConsulta() {
-  const linhas = valoresUnicos(PRODUTOS, 'linha');
   const formatos = valoresUnicos(PRODUTOS, 'formato');
-  const cores = valoresUnicos(PRODUTOS, 'cor');
-  const sel = (id, opts) => {
-    const el = document.getElementById(id);
-    el.innerHTML = '<option value="">Todos</option>' + opts.map((o) => `<option value="${o}">${o}</option>`).join('');
-  };
-  sel('cp-filtro-linha', linhas);
-  sel('cp-filtro-formato', formatos);
-  sel('cp-filtro-cor', cores);
+  const sel = document.getElementById('cns-formato');
+  sel.innerHTML = '<option value="">Selecione...</option>' + formatos.map((f) => `<option value="${f}">${f}</option>`).join('');
 }
 
-async function renderizarGridConsulta() {
-  const termo = document.getElementById('cp-busca').value;
-  const filtros = {
-    linha: document.getElementById('cp-filtro-linha').value,
-    formato: document.getElementById('cp-filtro-formato').value,
-    cor: document.getElementById('cp-filtro-cor').value
-  };
-  const lista = filtrarProdutos(PRODUTOS, termo, filtros);
-  const grid = document.getElementById('cp-grid');
-  document.getElementById('cp-contagem').textContent = lista.length + (lista.length === 1 ? ' produto' : ' produtos');
-
-  if (!lista.length) {
-    grid.innerHTML = '<div class="empty-state">Nenhum produto encontrado.</div>';
-    return;
-  }
-
-  grid.innerHTML = lista
-    .map(
-      (p, i) => `
-    <div class="prod-card" data-idx="${i}">
-      <div class="prod-card-img" id="cp-img-${i}"><div class="img-placeholder">carregando…</div></div>
-      <div class="prod-card-body">
-        <div class="prod-card-title">${p.nome}</div>
-        <div class="prod-card-sub">${p.formato} · ${p.linha}</div>
-        <div class="prod-card-tags">
-          <span class="chip">${p.codigo}</span>
-          <span class="chip">${p.cor}</span>
-        </div>
-        <div class="prod-card-prices">
-          <div><label>FOB</label><span>US$ ${Number(p.preco_fob || 0).toFixed(2)}</span></div>
-          <div><label>EXW</label><span>US$ ${Number(p.preco_exw || 0).toFixed(2)}</span></div>
-        </div>
-      </div>
-    </div>`
-    )
-    .join('');
-
-  lista.forEach(async (p, i) => {
-    const url = await urlDaImagem(p.imagem);
-    const container = document.getElementById('cp-img-' + i);
-    if (!container) return;
-    if (url) {
-      container.innerHTML = `<img src="${url}" loading="lazy" onclick="abrirDetalheProduto('${p.codigo}')">`;
-    } else {
-      container.innerHTML = '<div class="img-placeholder">sem foto local</div>';
-    }
+function cnsOnFormatoChange() {
+  const f = document.getElementById('cns-formato').value;
+  const sel = document.getElementById('cns-nome');
+  sel.disabled = !f;
+  sel.innerHTML = '<option value="">Selecione...</option>';
+  if (!f) return;
+  PRODUTOS.filter((p) => p.formato === f).forEach((p) => {
+    const o = document.createElement('option');
+    o.value = p.codigo; o.textContent = p.nome;
+    sel.appendChild(o);
   });
 }
 
-function abrirDetalheProduto(codigo) {
+function cnsOnNomeChange() {
+  const codigo = document.getElementById('cns-nome').value;
+  if (!codigo) return;
+  cnsSelecionarProduto(codigo);
+}
+
+function cnsOnCodigoInput() {
+  const v = document.getElementById('cns-codigo').value.trim();
+  const dd = document.getElementById('cns-codigo-dd');
+  if (!v) { dd.classList.add('hidden'); return; }
+  const m = PRODUTOS.filter((p) => String(p.codigo).includes(v) || p.nome.toLowerCase().includes(v.toLowerCase())).slice(0, 8);
+  if (!m.length) { dd.classList.add('hidden'); return; }
+  dd.innerHTML = m.map((p) => `<div class="autocomplete-item" onmousedown="cnsSelecionarProduto('${p.codigo}')"><strong>${p.codigo} — ${p.nome}</strong><small>${p.formato}</small></div>`).join('');
+  dd.classList.remove('hidden');
+}
+
+async function cnsSelecionarProduto(codigo) {
   const p = PRODUTOS.find((x) => String(x.codigo) === String(codigo));
   if (!p) return;
-  const modal = document.getElementById('modal-produto');
-  document.getElementById('mp-titulo').textContent = p.nome + ' · ' + p.formato;
-  document.getElementById('mp-corpo').innerHTML = `
-    <div class="mp-imgs" id="mp-imgs"></div>
-    <div class="mp-specs">
-      <div><label>Código</label><span>${p.codigo}</span></div>
-      <div><label>Linha</label><span>${p.linha}</span></div>
-      <div><label>Cor</label><span>${p.cor}</span></div>
-      <div><label>Superfície</label><span>${p.superficie}</span></div>
-      <div><label>Espessura</label><span>${p.thickness}</span></div>
-      <div><label>Uso</label><span>${p.uso}</span></div>
-      <div><label>Variação de tom</label><span>${p.vt}</span></div>
-      <div><label>Relevo</label><span>${p.relevo}</span></div>
-      <div><label>Preço FOB</label><span>US$ ${Number(p.preco_fob || 0).toFixed(2)}</span></div>
-      <div><label>Preço EXW</label><span>US$ ${Number(p.preco_exw || 0).toFixed(2)}</span></div>
-      <div><label>m²/caixa</label><span>${p.cx_sqmt}</span></div>
-      <div><label>Peso/caixa</label><span>${p.cx_peso} kg</span></div>
-    </div>`;
-  [p.imagem, p.imagem2, p.imagem3].filter(Boolean).forEach(async (url) => {
+  cnsProdutoAtual = p;
+  document.getElementById('cns-formato').value = p.formato;
+  cnsOnFormatoChange();
+  document.getElementById('cns-nome').value = p.codigo;
+  document.getElementById('cns-codigo').value = p.codigo;
+  document.getElementById('cns-codigo-dd').classList.add('hidden');
+  await cnsRenderResultado(p);
+}
+
+async function cnsRenderResultado(p) {
+  document.getElementById('cns-empty').classList.add('hidden');
+  document.getElementById('cns-resultado').classList.add('aberto');
+
+  // Identificação
+  document.getElementById('cns-r-formato').textContent = p.formato || '—';
+  document.getElementById('cns-r-codigo').textContent = p.codigo || '—';
+  document.getElementById('cns-r-barcode').textContent = p.barcode || '—';
+  document.getElementById('cns-r-nome').textContent = p.referencia || p.nome || '—';
+
+  // Características
+  document.getElementById('cns-r-face').textContent = p.face || '—';
+  document.getElementById('cns-r-local').textContent = p.local_uso || '—';
+  document.getElementById('cns-r-vt').textContent = p.vt || '—';
+  document.getElementById('cns-r-thick').textContent = p.thickness || '—';
+
+  // Packing List — Pallet Americano
+  document.getElementById('cns-cx-pecas').textContent = fmtN(p.cx_pecas);
+  document.getElementById('cns-cx-sqmt').textContent = fmtN(p.cx_sqmt);
+  document.getElementById('cns-cx-peso').textContent = fmtN(p.cx_peso);
+  document.getElementById('cns-pal-caixas').textContent = fmtN(p.pallet_caixas);
+  document.getElementById('cns-pal-sqmt').textContent = fmtN(p.pallet_sqmt);
+  document.getElementById('cns-pal-peso').textContent = fmtN(p.pallet_peso);
+  document.getElementById('cns-con-caixas').textContent = fmtN(p.container_caixas);
+  document.getElementById('cns-con-pallets').textContent = fmtN(p.container_pallets);
+  document.getElementById('cns-con-sqmt').textContent = fmtN(p.container_sqmt);
+  document.getElementById('cns-con-peso').textContent = fmtN(p.container_peso);
+
+  // Packing List — Euro Pallet
+  document.getElementById('cns-euro-cx-pecas').textContent = fmtN(p.euro_cx_pecas);
+  document.getElementById('cns-euro-cx-sqmt').textContent = fmtN(p.euro_cx_sqmt);
+  document.getElementById('cns-euro-cx-peso').textContent = fmtN(p.euro_cx_peso);
+  document.getElementById('cns-euro-pal-caixas').textContent = fmtN(p.euro_pallet_caixas);
+  document.getElementById('cns-euro-pal-sqmt').textContent = fmtN(p.euro_pallet_sqmt);
+  document.getElementById('cns-euro-pal-peso').textContent = fmtN(p.euro_pallet_peso);
+  document.getElementById('cns-euro-con-caixas').textContent = fmtN(p.euro_container_caixas);
+  document.getElementById('cns-euro-con-pallets').textContent = fmtN(p.euro_container_pallets);
+  document.getElementById('cns-euro-con-sqmt').textContent = fmtN(p.euro_container_sqmt);
+  document.getElementById('cns-euro-con-peso').textContent = fmtN(p.euro_container_peso);
+
+  // Preços
+  document.getElementById('cns-r-fob').textContent = 'US$ ' + fmtN(p.preco_fob);
+  document.getElementById('cns-r-exw').textContent = 'US$ ' + fmtN(p.preco_exw);
+
+  // Fotos
+  const urls = [p.imagem, p.imagem2, p.imagem3].filter(Boolean);
+  cnsFotosAtuais = [];
+  const wrap = document.getElementById('cns-foto-wrap');
+  const imgEl = document.getElementById('cns-foto');
+  const placeholder = document.getElementById('cns-foto-placeholder');
+  const thumbsEl = document.getElementById('cns-thumbs');
+  thumbsEl.innerHTML = '';
+  imgEl.style.display = 'none';
+  placeholder.style.display = 'flex';
+
+  for (const url of urls) {
     const objUrl = await urlDaImagem(url);
-    if (objUrl) {
-      document.getElementById('mp-imgs').insertAdjacentHTML('beforeend', `<img src="${objUrl}">`);
-    }
-  });
-  modal.classList.add('aberto');
+    if (objUrl) cnsFotosAtuais.push(objUrl);
+  }
+
+  if (cnsFotosAtuais.length) {
+    imgEl.src = cnsFotosAtuais[0];
+    imgEl.style.display = 'block';
+    placeholder.style.display = 'none';
+    cnsFotosAtuais.forEach((u, i) => {
+      const t = document.createElement('div');
+      t.className = 'cns-thumb' + (i === 0 ? ' active' : '');
+      t.innerHTML = `<img src="${u}">`;
+      t.onclick = () => {
+        imgEl.src = u;
+        thumbsEl.querySelectorAll('.cns-thumb').forEach((el) => el.classList.remove('active'));
+        t.classList.add('active');
+      };
+      thumbsEl.appendChild(t);
+    });
+  } else {
+    placeholder.textContent = '📦 sem foto local';
+  }
+}
+
+function cnsAbrirZoom() {
+  const imgEl = document.getElementById('cns-foto');
+  if (!imgEl.src || imgEl.style.display === 'none') return;
+  document.getElementById('mp-foto-zoom').src = imgEl.src;
+  document.getElementById('modal-produto').classList.add('aberto');
 }
 
 function fecharModalProduto() {
   document.getElementById('modal-produto').classList.remove('aberto');
+}
+
+function cnsTogglePreco() {
+  const checked = document.getElementById('cns-preco-toggle').checked;
+  cnsPrecoVisivel = checked;
+  document.getElementById('cns-preco-label').textContent = checked ? 'Ocultar' : 'Mostrar';
+  document.getElementById('cns-preco-box').classList.toggle('hidden', !checked);
 }

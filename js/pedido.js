@@ -182,6 +182,10 @@ function removerItem(uid) {
   if (itensPedido.length <= 1) { mostrarToast('Mantenha pelo menos 1 item', 'error'); return; }
   itensPedido = itensPedido.filter((i) => i.uid !== uid);
   document.getElementById('item-' + uid)?.remove();
+  document.querySelectorAll('#np-itens-lista .item-card').forEach((card, i) => {
+    const numEl = card.querySelector('.item-num');
+    if (numEl) numEl.textContent = i + 1;
+  });
   atualizarResumoPedido();
 }
 
@@ -190,9 +194,11 @@ function renderizarItem(uid) {
   const div = document.createElement('div');
   div.className = 'item-card';
   div.id = 'item-' + uid;
+  const numAtual = itensPedido.findIndex((it) => it.uid === uid) + 1;
   div.innerHTML = `
     <div class="item-header">
-      <div class="item-nome" id="iname-${uid}">Novo item</div>
+      <div class="item-num">${numAtual}</div>
+      <div class="item-name" id="iname-${uid}">Novo item</div>
       <button type="button" class="item-remove" onclick="removerItem('${uid}')">×</button>
     </div>
     <div class="grid grid-3">
@@ -227,11 +233,12 @@ function renderizarItem(uid) {
         <input type="number" id="qtd-${uid}" min="1" value="1" oninput="recalcItem('${uid}')">
       </div>
     </div>
-    <label class="checkbox-row">
-      <input type="checkbox" id="euro-${uid}" onchange="recalcItem('${uid}')">
-      Europallet
-    </label>
-    <div class="item-resultados" id="results-${uid}">
+    <div class="europallet-row" id="euro-row-${uid}" onclick="document.getElementById('euro-${uid}').click()">
+      <input type="checkbox" id="euro-${uid}" onchange="recalcItem('${uid}');document.getElementById('euro-row-${uid}').classList.toggle('checked',this.checked)" onclick="event.stopPropagation()">
+      <div class="euro-box">✓</div>
+      <span class="europallet-label">Europallet</span>
+    </div>
+    <div class="item-results" id="results-${uid}">
       <div><label>m²</label><span id="r-sqmt-${uid}">—</span></div>
       <div><label>Preço unit.</label><span id="r-preco-${uid}">—</span></div>
       <div><label>Total</label><span id="r-total-${uid}">—</span></div>

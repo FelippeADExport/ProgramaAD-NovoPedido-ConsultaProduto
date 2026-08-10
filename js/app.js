@@ -11,18 +11,43 @@ function mostrarToast(msg, tipo) {
   setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 4000);
 }
 
-function trocarAba(nome) {
-  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === nome));
-  document.querySelectorAll('.tab-pane').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + nome));
-  if (nome === 'consulta') renderizarGridConsulta();
-  if (nome === 'pedido' && itensPedido.length === 0) iniciarNovoPedido();
+// ---------------- Tema claro/escuro (igual ao programa original) ----------------
+
+function aplicarTema(t) {
+  document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : '');
+  document.getElementById('themeIcon').textContent = t === 'light' ? '🌙' : '☀️';
+  document.getElementById('themeLabel').textContent = t === 'light' ? 'Escuro' : 'Claro';
+  localStorage.setItem('adexport_theme', t);
 }
+function toggleTheme() {
+  aplicarTema((localStorage.getItem('adexport_theme') || 'dark') === 'light' ? 'dark' : 'light');
+}
+function initTheme() {
+  aplicarTema(localStorage.getItem('adexport_theme') || 'dark');
+}
+
+// ---------------- Abas ----------------
+
+function abrirRecursoOnline(nome) {
+  if (!navigator.onLine) {
+    mostrarToast(nome + ' precisa de internet para funcionar. Conecte-se e tente de novo.', 'error');
+    return;
+  }
+  window.open(API_URL, '_blank');
+}
+
+function trocarAba(nome) {
+  document.querySelectorAll('.tab-btn[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === nome));
+  document.querySelectorAll('.tab-content').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + nome));
+}
+
+// ---------------- Status de conexão / fila offline ----------------
 
 function atualizarStatusConexao() {
   const online = navigator.onLine;
   const el = document.getElementById('status-conexao');
   el.textContent = online ? '● Online' : '● Offline';
-  el.className = online ? 'status-online' : 'status-offline';
+  el.className = 'status-dot ' + (online ? 'status-online' : 'status-offline');
   if (online) sincronizarPedidosPendentes();
 }
 
@@ -78,13 +103,13 @@ async function atualizarDados() {
       texto.textContent = 'Baixando portos e configurações...';
       PORTOS = await API.buscarPortos();
       CFG = await API.buscarConfig();
-    } catch (e) { /* opcional, segue sem travar */ }
+      await DB.setMeta('config', CFG);
+      await DB.setMeta('portos', PORTOS);
+    } catch (e) { /* opcional */ }
 
     texto.textContent = 'Baixando fotos (isso pode levar alguns minutos)...';
     await sincronizarImagens(produtos, (feitos, total) => {
-      texto.textContent = total > 0
-        ? `Baixando fotos... ${feitos}/${total}`
-        : 'Fotos já atualizadas';
+      texto.textContent = total > 0 ? `Baixando fotos... ${feitos}/${total}` : 'Fotos já atualizadas';
       document.getElementById('sync-barra-interna').style.width = total > 0 ? (feitos / total * 100) + '%' : '100%';
     });
 
@@ -112,37 +137,34 @@ async function atualizarTextoUltimaSync() {
 // ---------------- Inicialização ----------------
 
 async function init() {
+  initTheme();
+
   if ('serviceWorker' in navigator) {
-    try { await navigator.serviceWorker.register('./sw.js'); } catch (e) { /* segue sem sw */ }
+    try { await navigator.serviceWorker.register('./sw.js'); } catch (e) {}
   }
 
   PRODUTOS = await DB.listarProdutos();
   CLIENTES = await DB.listarClientes();
   try { CFG = (await DB.getMeta('config')) || CFG; } catch (e) {}
+  try { PORTOS = (await DB.getMeta('portos')) || []; } catch (e) {}
 
   montarFiltrosConsulta();
   montarSelectPortos();
   atualizarTextoUltimaSync();
   atualizarBadgePendentes();
   atualizarStatusConexao();
+  iniciarNovoPedido();
 
   window.addEventListener('online', atualizarStatusConexao);
   window.addEventListener('offline', atualizarStatusConexao);
 
   document.getElementById('btn-atualizar-dados').addEventListener('click', atualizarDados);
-  document.querySelectorAll('.tab-btn').forEach((b) => b.addEventListener('click', () => trocarAba(b.dataset.tab)));
-  document.getElementById('cp-busca').addEventListener('input', renderizarGridConsulta);
-  document.getElementById('cp-filtro-linha').addEventListener('change', renderizarGridConsulta);
-  document.getElementById('cp-filtro-formato').addEventListener('change', renderizarGridConsulta);
-  document.getElementById('cp-filtro-cor').addEventListener('change', renderizarGridConsulta);
+  document.querySelectorAll('.tab-btn[data-tab]').forEach((b) => b.addEventListener('click', () => trocarAba(b.dataset.tab)));
 
   if (PRODUTOS.length === 0) {
     mostrarToast('Nenhum dado local ainda — conecte-se à internet e toque em "Atualizar dados"', 'info');
-  } else {
-    renderizarGridConsulta();
   }
 
-  // tenta sincronizar pedidos pendentes periodicamente
   setInterval(() => { if (navigator.onLine) sincronizarPedidosPendentes(); }, 60000);
 }
 

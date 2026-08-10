@@ -2,7 +2,7 @@
 // Cacheia o "app shell" (HTML/CSS/JS/ícones). Os DADOS (produtos, clientes,
 // imagens, pedidos) NÃO passam por aqui — ficam no IndexedDB (veja db.js).
 
-const CACHE_NAME = 'adexport-shell-v1';
+const CACHE_NAME = 'adexport-shell-v2';
 const SHELL_FILES = [
   './',
   './index.html',
