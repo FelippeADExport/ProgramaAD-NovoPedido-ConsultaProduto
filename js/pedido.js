@@ -23,9 +23,11 @@ function iniciarNovoPedido() {
   currentPrice = 'FOB';
   currentFrete = 'maritimo';
   currentPorto = '';
+  pedidoSalvoOnline = null;
   document.getElementById('np-cliente-busca').value = '';
   document.getElementById('np-cliente-selecionado').classList.add('hidden');
   document.getElementById('np-cliente-form-novo').classList.add('hidden');
+  document.getElementById('np-btn-gerar-pdf').classList.add('hidden');
   document.getElementById('np-observacoes').value = '';
   document.getElementById('np-desconto').value = '';
   document.getElementById('np-itens-lista').innerHTML = '';
@@ -59,31 +61,49 @@ function selecionarCliente(id) {
   if (!c) return;
   clienteSelecionado = c;
   document.getElementById('np-cliente-lista').classList.add('hidden');
-  document.getElementById('np-cliente-form-novo').classList.add('hidden');
   document.getElementById('np-cliente-busca').value = '';
+
   const box = document.getElementById('np-cliente-selecionado');
   box.classList.remove('hidden');
-  box.innerHTML = `<strong>${c.nome}</strong><span>${c.cidade || ''} · ${c.pais || ''}</span>
+  box.innerHTML = `<strong>Cliente selecionado: ${c.nome}</strong><span>${c.cidade || ''} · ${c.pais || ''}</span>
     <button type="button" onclick="trocarCliente()">Trocar</button>`;
+
+  // Preenche o formulário com os dados do cliente para permitir edição
+  document.getElementById('ncNome').value = c.nome || '';
+  document.getElementById('ncRut').value = c.rut || '';
+  document.getElementById('ncContato').value = c.contato || '';
+  document.getElementById('ncEndereco').value = c.endereco || '';
+  document.getElementById('ncComplemento').value = c.complemento || '';
+  document.getElementById('ncCidade').value = c.cidade || '';
+  document.getElementById('ncProvincia').value = c.provincia || '';
+  document.getElementById('ncPais').value = c.pais || '';
+  document.getElementById('ncCep').value = c.cep || '';
+  document.getElementById('ncTelefone').value = c.telefone || '';
+  document.getElementById('ncEmail').value = c.email || '';
+  document.getElementById('np-cliente-form-novo').classList.remove('hidden');
+  document.getElementById('np-btn-salvar-cliente').textContent = 'Salvar alterações do cliente';
 }
 
 function trocarCliente() {
   clienteSelecionado = null;
   document.getElementById('np-cliente-selecionado').classList.add('hidden');
   document.getElementById('np-cliente-busca').value = '';
+  abrirCadastroClienteNovo();
 }
 
 function abrirCadastroClienteNovo() {
   document.getElementById('np-cliente-lista').classList.add('hidden');
   document.getElementById('np-cliente-form-novo').classList.remove('hidden');
-  ['ncNome','ncEndereco','ncComplemento','ncProvincia','ncCidade','ncPais','ncCep','ncContato','ncTelefone','ncEmail'].forEach(id => {
+  document.getElementById('np-btn-salvar-cliente').textContent = 'Salvar cliente';
+  ['ncNome','ncRut','ncEndereco','ncComplemento','ncProvincia','ncCidade','ncPais','ncCep','ncContato','ncTelefone','ncEmail'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
 }
 
-async function salvarClienteNovoESelecionar() {
+async function salvarCliente() {
   const cliente = {
     nome: document.getElementById('ncNome').value.trim(),
+    rut: document.getElementById('ncRut').value.trim(),
     endereco: document.getElementById('ncEndereco').value.trim(),
     complemento: document.getElementById('ncComplemento').value.trim(),
     provincia: document.getElementById('ncProvincia').value.trim(),
@@ -96,20 +116,35 @@ async function salvarClienteNovoESelecionar() {
   };
   if (!cliente.nome) { mostrarToast('Informe o nome do cliente', 'error'); return; }
 
+  const editandoExistente = clienteSelecionado && clienteSelecionado.id && !String(clienteSelecionado.id).startsWith('TEMP');
+  if (editandoExistente) cliente.id = clienteSelecionado.id;
+
   if (navigator.onLine) {
     try {
-      const r = await API.salvarCliente(cliente);
-      cliente.id = r.id;
+      if (editandoExistente) {
+        await API.atualizarCliente(cliente);
+        mostrarToast('Cliente atualizado', 'success');
+      } else {
+        const r = await API.salvarCliente(cliente);
+        cliente.id = r.id;
+        mostrarToast('Cliente cadastrado', 'success');
+      }
       await DB.salvarCliente(cliente);
-      CLIENTES.push(cliente);
+      const idx = CLIENTES.findIndex((c) => String(c.id) === String(cliente.id));
+      if (idx >= 0) CLIENTES[idx] = cliente; else CLIENTES.push(cliente);
+      clienteSelecionado = cliente;
       selecionarCliente(cliente.id);
-      mostrarToast('Cliente cadastrado', 'success');
       return;
     } catch (e) {
-      mostrarToast('Erro ao salvar cliente online, salvando localmente', 'error');
+      mostrarToast('Erro ao salvar cliente online: ' + e.message, 'error');
+      return;
     }
   }
-  // offline: gera id temporário local; sincroniza quando o pedido for enviado
+  // offline: só permite cadastro novo (edição de cliente existente precisa de internet)
+  if (editandoExistente) {
+    mostrarToast('Editar cliente existente precisa de internet. Conecte-se e tente de novo.', 'error');
+    return;
+  }
   cliente.id = 'TEMP' + Date.now();
   cliente._pendenteSync = true;
   await DB.salvarCliente(cliente);
@@ -411,6 +446,8 @@ function montarObjetoPedido() {
   };
 }
 
+let pedidoSalvoOnline = null;
+
 async function salvarPedidoAtual() {
   if (!clienteSelecionado) { mostrarToast('Selecione ou cadastre um cliente', 'error'); return; }
   const validos = itensPedido.filter((i) => i.produto);
@@ -420,9 +457,11 @@ async function salvarPedidoAtual() {
 
   if (navigator.onLine) {
     try {
-      await API.salvarPedido(pedido);
+      const r = await API.salvarPedido(pedido);
+      pedido.numero = r.numero || pedido.numero;
+      pedidoSalvoOnline = pedido;
       mostrarToast('Pedido enviado com sucesso!', 'success');
-      iniciarNovoPedido();
+      document.getElementById('np-btn-gerar-pdf').classList.remove('hidden');
       return;
     } catch (e) {
       mostrarToast('Falha ao enviar — pedido salvo offline e será sincronizado', 'error');
@@ -432,4 +471,23 @@ async function salvarPedidoAtual() {
   mostrarToast('Sem internet — pedido salvo no dispositivo. Será enviado automaticamente quando houver conexão.', 'success');
   iniciarNovoPedido();
   atualizarBadgePendentes();
+}
+
+async function gerarPdfPedidoAtual() {
+  if (!pedidoSalvoOnline) { mostrarToast('Salve o pedido online antes de gerar o PDF', 'error'); return; }
+  if (!navigator.onLine) { mostrarToast('Gerar PDF precisa de internet', 'error'); return; }
+  const btn = document.getElementById('np-btn-gerar-pdf');
+  btn.disabled = true;
+  btn.textContent = 'Gerando PDF...';
+  try {
+    const r = await API.gerarPdf(pedidoSalvoOnline);
+    mostrarToast('PDF gerado com sucesso!', 'success');
+    if (r && r.url) window.open(r.url, '_blank');
+    iniciarNovoPedido();
+  } catch (e) {
+    mostrarToast('Erro ao gerar PDF: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📄 Gerar PDF do pedido';
+  }
 }

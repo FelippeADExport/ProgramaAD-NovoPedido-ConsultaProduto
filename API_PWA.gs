@@ -1,21 +1,17 @@
 // ============================================================
-// API_PWA.gs
-// Adicione este arquivo como NOVO arquivo .gs no mesmo projeto
-// Apps Script do Codigo.gs (Extensões > Apps Script > ícone "+"
-// ao lado de Arquivos > Script). Cole este conteúdo nele.
-//
-// Depois, veja no final deste arquivo a ÚNICA alteração necessária
-// no doGet() do Codigo.gs original.
+// API_PWA.gs — Referência de todas as rotas usadas pelo PWA.
+// Substitua _apiRoteadorGet e _apiRoteadorPost no seu Codigo.gs
+// por estas versões (elas já incluem todas as rotas novas).
+// Depois: Implantar > Gerenciar implantações > ✎ > Nova versão > Implantar.
 // ============================================================
 
-// ---------- Roteador GET (produtos, clientes, config, portos) ----------
 function _apiRoteadorGet(e) {
   const action = e.parameter.action;
   let resultado;
   try {
     switch (action) {
       case 'produtos':
-        resultado = _apiProdutos();
+        resultado = JSON.parse(getProdutos());
         break;
       case 'clientes':
         resultado = JSON.parse(getClientes());
@@ -25,6 +21,12 @@ function _apiRoteadorGet(e) {
         break;
       case 'portos':
         resultado = JSON.parse(getPortosDestino());
+        break;
+      case 'pedidos':
+        resultado = JSON.parse(getPedidos());
+        break;
+      case 'itens_pedido':
+        resultado = JSON.parse(getItensPedido(e.parameter.numero));
         break;
       default:
         resultado = { success: false, error: 'Ação GET desconhecida: ' + action };
@@ -36,12 +38,6 @@ function _apiRoteadorGet(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// getProdutos() já existe no Codigo.gs — só reaproveitamos
-function _apiProdutos() {
-  return JSON.parse(getProdutos());
-}
-
-// ---------- Roteador POST (imagens em lote, pedido, cliente) ----------
 function _apiRoteadorPost(e) {
   const action = e.parameter.action;
   let body = {};
@@ -55,11 +51,23 @@ function _apiRoteadorPost(e) {
       case 'pedido':
         resultado = JSON.parse(salvarPedido(JSON.stringify(body)));
         break;
+      case 'atualizar_pedido':
+        resultado = JSON.parse(atualizarPedido(JSON.stringify(body.pedido), body.numeroOriginal, body.linkPdfAntigo || ''));
+        break;
+      case 'excluir_pedido':
+        resultado = JSON.parse(excluirPedido(body.numero, body.linkPdf || ''));
+        break;
+      case 'gerar_pdf':
+        resultado = JSON.parse(gerarPdfESalvar(JSON.stringify(body)));
+        break;
       case 'cliente_novo':
         resultado = JSON.parse(salvarCliente(JSON.stringify(body)));
         break;
       case 'cliente_editar':
         resultado = JSON.parse(atualizarCliente(JSON.stringify(body)));
+        break;
+      case 'salvar_config':
+        resultado = JSON.parse(salvarConfig(JSON.stringify(body)));
         break;
       default:
         resultado = { success: false, error: 'Ação POST desconhecida: ' + action };
@@ -72,7 +80,6 @@ function _apiRoteadorPost(e) {
 }
 
 // Busca imagens em MÁXIMA qualidade (arquivo original do Drive, não thumbnail).
-// O app cliente é quem redimensiona/comprime para WebP antes de salvar localmente.
 function _apiImagensLote(fileIds) {
   const result = {};
   fileIds.forEach((fileId) => {
@@ -88,9 +95,7 @@ function _apiImagensLote(fileIds) {
 }
 
 // ============================================================
-// ÚNICA ALTERAÇÃO NECESSÁRIA no Codigo.gs original:
-//
-// Troque a função doGet() atual (que só serve o Index.html) por esta:
+// doGet / doPost no Codigo.gs devem ser exatamente:
 //
 // function doGet(e) {
 //   if (e && e.parameter && e.parameter.action) {
@@ -101,13 +106,7 @@ function _apiImagensLote(fileIds) {
 //     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 // }
 //
-// E adicione esta função doPost (não existe uma ainda no projeto):
-//
 // function doPost(e) {
 //   return _apiRoteadorPost(e);
 // }
-//
-// Depois de salvar, vá em Implantar > Gerenciar implantações > ✎ (editar)
-// > Nova versão > Implantar, para que o link já existente passe a
-// responder com essa lógica nova.
 // ============================================================

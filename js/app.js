@@ -28,17 +28,13 @@ function initTheme() {
 
 // ---------------- Abas ----------------
 
-function abrirRecursoOnline(nome) {
-  if (!navigator.onLine) {
-    mostrarToast(nome + ' precisa de internet para funcionar. Conecte-se e tente de novo.', 'error');
-    return;
-  }
-  window.open(API_URL, '_blank');
-}
-
 function trocarAba(nome) {
   document.querySelectorAll('.tab-btn[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === nome));
   document.querySelectorAll('.tab-content').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + nome));
+  if (nome === 'todos') carregarTodosPedidos();
+  if (nome === 'clientes') { montarFiltrosClientes(); renderizarClientes(); }
+  if (nome === 'catalogo') { montarFiltrosCatalogo(); catRenderSelecionados(); }
+  if (nome === 'config') carregarConfiguracoesUI();
 }
 
 // ---------------- Status de conexão / fila offline ----------------
@@ -108,7 +104,7 @@ async function atualizarDados() {
     } catch (e) { /* opcional */ }
 
     texto.textContent = 'Baixando fotos (isso pode levar alguns minutos)...';
-    await sincronizarImagens(produtos, (feitos, total) => {
+    const resultadoImgs = await sincronizarImagens(produtos, (feitos, total) => {
       texto.textContent = total > 0 ? `Baixando fotos... ${feitos}/${total}` : 'Fotos já atualizadas';
       document.getElementById('sync-barra-interna').style.width = total > 0 ? (feitos / total * 100) + '%' : '100%';
     });
@@ -117,7 +113,11 @@ async function atualizarDados() {
     atualizarTextoUltimaSync();
     montarFiltrosConsulta();
     montarSelectPortos();
-    mostrarToast('Dados atualizados com sucesso!', 'success');
+    if (resultadoImgs && resultadoImgs.falhas > 0) {
+      mostrarToast(`Dados atualizados, mas ${resultadoImgs.falhas} foto(s) não puderam ser baixadas (provável falta de permissão no Drive para esses arquivos)`, 'error');
+    } else {
+      mostrarToast('Dados atualizados com sucesso!', 'success');
+    }
   } catch (e) {
     mostrarToast('Erro ao atualizar: ' + e.message, 'error');
   } finally {
@@ -150,6 +150,8 @@ async function init() {
 
   montarFiltrosConsulta();
   montarSelectPortos();
+  montarFiltrosClientes();
+  montarFiltrosCatalogo();
   atualizarTextoUltimaSync();
   atualizarBadgePendentes();
   atualizarStatusConexao();

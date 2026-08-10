@@ -40,11 +40,17 @@ const API = {
   buscarClientes: () => _apiGet('clientes'),
   buscarConfig: () => _apiGet('config'),
   buscarPortos: () => _apiGet('portos'),
+  buscarPedidos: () => _apiGet('pedidos'),
+  buscarItensPedido: (numero) => _apiGet('itens_pedido', { numero }),
 
   // ids: array de fileId do Drive. Retorna { fileId: base64DataUrl }
   buscarImagensLote: (ids) => _apiPost('imagens', { ids }),
 
   salvarPedido: (pedido) => _apiPost('pedido', pedido),
+  atualizarPedido: (pedido, numeroOriginal, linkPdfAntigo) => _apiPost('atualizar_pedido', { pedido, numeroOriginal, linkPdfAntigo }),
+  excluirPedido: (numero, linkPdf) => _apiPost('excluir_pedido', { numero, linkPdf }),
+  gerarPdf: (pedido) => _apiPost('gerar_pdf', pedido),
   salvarCliente: (cliente) => _apiPost('cliente_novo', cliente),
-  atualizarCliente: (cliente) => _apiPost('cliente_editar', cliente)
+  atualizarCliente: (cliente) => _apiPost('cliente_editar', cliente),
+  salvarConfig: (config) => _apiPost('salvar_config', config)
 };

@@ -64,9 +64,10 @@ async function sincronizarImagens(produtos, onProgress) {
     if (!ja) faltando.push(id);
   }
   let feitos = 0;
+  let falhas = 0;
   const total = faltando.length;
   onProgress && onProgress(feitos, total);
-  if (total === 0) return;
+  if (total === 0) return { falhas: 0 };
 
   for (let i = 0; i < faltando.length; i += LOTE_IMAGENS) {
     const lote = faltando.slice(i, i + LOTE_IMAGENS);
@@ -82,12 +83,15 @@ async function sincronizarImagens(produtos, onProgress) {
         try {
           const blob = await otimizarImagem(dataUrl);
           await DB.salvarImagem(fileId, blob);
-        } catch (e) { /* pula imagem com problema */ }
+        } catch (e) { falhas++; }
+      } else {
+        falhas++; // API não conseguiu ler esse arquivo do Drive (permissão/arquivo ausente)
       }
       feitos++;
       onProgress && onProgress(feitos, total);
     }
   }
+  return { falhas };
 }
 
 async function urlDaImagem(urlOriginal) {
@@ -234,7 +238,7 @@ async function cnsRenderResultado(p) {
 function cnsAbrirZoom() {
   const imgEl = document.getElementById('cns-foto');
   if (!imgEl.src || imgEl.style.display === 'none') return;
-  document.getElementById('mp-foto-zoom').src = imgEl.src;
+  document.getElementById('modal-produto-corpo').innerHTML = `<img src="${imgEl.src}" style="width:100%;border-radius:8px">`;
   document.getElementById('modal-produto').classList.add('aberto');
 }
 

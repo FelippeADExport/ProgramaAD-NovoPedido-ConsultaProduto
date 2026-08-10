@@ -17,11 +17,11 @@
     <div class="topbar-logo">AD EXPORT</div>
     <nav class="tab-nav">
       <button class="tab-btn active" data-tab="pedido">✦ Novo Pedido</button>
-      <button class="tab-btn locked" onclick="abrirRecursoOnline('Todos os Pedidos')">☰ Todos os Pedidos <span>🔒</span></button>
+      <button class="tab-btn" data-tab="todos">☰ Todos os Pedidos</button>
       <button class="tab-btn" data-tab="consulta">🔍 Consulta Produto</button>
-      <button class="tab-btn locked" onclick="abrirRecursoOnline('Consulta Cliente')">👥 Consulta Cliente <span>🔒</span></button>
-      <button class="tab-btn locked" onclick="abrirRecursoOnline('Catálogo PDF')">📄 Catálogo PDF <span>🔒</span></button>
-      <button class="tab-btn locked" onclick="abrirRecursoOnline('Configurações')">⚙️ Configurações <span>🔒</span></button>
+      <button class="tab-btn" data-tab="clientes">👥 Consulta Cliente</button>
+      <button class="tab-btn" data-tab="catalogo">📄 Catálogo PDF</button>
+      <button class="tab-btn" data-tab="config">⚙️ Configurações</button>
     </nav>
   </div>
   <div class="topbar-right">
@@ -33,7 +33,7 @@
   </div>
 </header>
 
-<div class="tabs-legenda">🔒 = precisa de internet · Novo Pedido e Consulta Produto funcionam offline</div>
+<div class="tabs-legenda">Novo Pedido e Consulta Produto funcionam offline · as demais abas precisam de internet</div>
 <div id="badge-pendentes" class="badge-pendentes hidden"></div>
 
 <div class="sync-bar">
@@ -62,6 +62,7 @@
         <div id="np-cliente-form-novo" class="hidden mt-12">
           <div class="grid grid-2">
             <div><label>Nome *</label><input type="text" id="ncNome"></div>
+            <div><label>RUT / Documento</label><input type="text" id="ncRut"></div>
             <div><label>Contato</label><input type="text" id="ncContato"></div>
             <div><label>Endereço</label><input type="text" id="ncEndereco"></div>
             <div><label>Complemento</label><input type="text" id="ncComplemento"></div>
@@ -72,7 +73,7 @@
             <div><label>Telefone</label><input type="text" id="ncTelefone"></div>
             <div><label>Email</label><input type="text" id="ncEmail"></div>
           </div>
-          <button type="button" class="btn btn-primary mt-12" onclick="salvarClienteNovoESelecionar()">Salvar cliente</button>
+          <button type="button" class="btn btn-primary mt-12" id="np-btn-salvar-cliente" onclick="salvarCliente()">Salvar cliente</button>
         </div>
       </div>
     </div>
@@ -127,6 +128,7 @@
         <label class="mt-12">Observações</label>
         <textarea id="np-observacoes" rows="3"></textarea>
         <button type="button" class="btn btn-primary btn-full mt-12" onclick="salvarPedidoAtual()">Salvar pedido</button>
+        <button type="button" class="btn btn-secondary btn-full mt-8 hidden" id="np-btn-gerar-pdf" onclick="gerarPdfPedidoAtual()">📄 Gerar PDF do pedido</button>
       </div>
     </div>
   </div>
@@ -268,20 +270,110 @@
   </div>
 </div>
 
-<div id="toasts" class="toasts"></div>
-
-<!-- Modal zoom da foto -->
-<div id="modal-produto" class="modal">
-  <div class="modal-conteudo">
-    <button class="modal-fechar" onclick="fecharModalProduto()">×</button>
-    <img id="mp-foto-zoom" style="width:100%;border-radius:8px">
+<!-- ===================== TODOS OS PEDIDOS ===================== -->
+<div id="tab-todos" class="tab-content">
+  <div class="main">
+    <div class="page-title">☰ Todos os Pedidos</div>
+    <div class="page-sub">Precisa de internet · <span id="todos-contagem"></span></div>
+    <div class="section">
+      <div class="section-body">
+        <input type="text" id="todos-busca" placeholder="Buscar por número ou cliente..." oninput="renderizarTodosPedidos()">
+      </div>
+    </div>
+    <div id="todos-lista"></div>
   </div>
 </div>
 
+<!-- ===================== CONSULTA CLIENTE ===================== -->
+<div id="tab-clientes" class="tab-content">
+  <div class="main">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="page-title">👥 Consulta Cliente</div>
+        <div class="page-sub">Precisa de internet para editar/cadastrar</div>
+      </div>
+      <button class="btn btn-primary" onclick="abrirNovoClienteStandalone()">+ Novo Cliente</button>
+    </div>
+    <div class="section">
+      <div class="section-body">
+        <div class="grid grid-3">
+          <div><label>Nome / ID</label><input type="text" id="cli-busca" oninput="renderizarClientes()"></div>
+          <div><label>País</label><select id="cli-filtro-pais" onchange="renderizarClientes()"><option value="">Todos</option></select></div>
+          <div><label>Cidade</label><select id="cli-filtro-cidade" onchange="renderizarClientes()"><option value="">Todas</option></select></div>
+        </div>
+      </div>
+    </div>
+    <div id="clientes-lista"></div>
+  </div>
+</div>
+
+<!-- ===================== CATÁLOGO PDF ===================== -->
+<div id="tab-catalogo" class="tab-content">
+  <div class="main">
+    <div class="page-title">📄 Catálogo PDF</div>
+    <div class="page-sub">Gere um catálogo em PDF com os produtos selecionados (funciona offline se as fotos já estiverem baixadas)</div>
+
+    <div class="section">
+      <div class="section-header"><div class="section-title">Opções</div></div>
+      <div class="section-body">
+        <div class="grid grid-3">
+          <div><label>Formato</label><select id="cat-filtro-formato" onchange="catAtualizarNomes()"><option value="">Todos</option></select></div>
+          <div><label>Produto</label><select id="cat-filtro-produto"><option value="">Selecione...</option></select></div>
+          <div style="display:flex;align-items:flex-end"><button class="btn btn-secondary btn-full" onclick="catAdicionarSelecionado()">+ Adicionar</button></div>
+        </div>
+        <button class="btn btn-secondary mt-8" onclick="catAdicionarTodosFormato()">+ Adicionar todos do formato</button>
+        <div class="checkbox-row"><input type="checkbox" id="cat-mostrar-preco" checked> Mostrar preço (FOB)</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header"><div class="section-title">Produtos selecionados (<span id="cat-contagem">0</span>)</div></div>
+      <div class="section-body" id="cat-lista-selecionados">
+        <div class="empty-state"><div class="sub">Nenhum produto selecionado</div></div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-full" id="cat-btn-gerar" onclick="gerarCatalogoPdf()">📄 Gerar PDF do catálogo</button>
+  </div>
+</div>
+
+<!-- ===================== CONFIGURAÇÕES ===================== -->
+<div id="tab-config" class="tab-content">
+  <div class="main">
+    <div class="page-title">⚙️ Configurações</div>
+    <div class="page-sub">Precisa de internet para salvar</div>
+    <div class="section">
+      <div class="section-header"><div class="section-title">Acréscimos de frete</div></div>
+      <div class="section-body">
+        <div class="grid grid-2">
+          <div><label>Acréscimo Itapoá (%)</label><input type="number" id="cfg-itapoa" step="0.01"></div>
+          <div><label>Acréscimo Europallet (%)</label><input type="number" id="cfg-europallet" step="0.01"></div>
+        </div>
+        <button class="btn btn-primary mt-12" onclick="salvarConfiguracoes()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toasts" class="toasts"></div>
+
+<!-- Modal zoom da foto / detalhe pedido / edição cliente -->
+<div id="modal-produto" class="modal">
+  <div class="modal-conteudo">
+    <button class="modal-fechar" onclick="fecharModalProduto()">×</button>
+    <div id="modal-produto-corpo"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="js/db.js"></script>
 <script src="js/api.js"></script>
 <script src="js/produtos.js"></script>
 <script src="js/pedido.js"></script>
+<script src="js/pedidos-lista.js"></script>
+<script src="js/clientes.js"></script>
+<script src="js/catalogo.js"></script>
+<script src="js/config.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
