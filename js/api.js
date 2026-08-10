@@ -5,7 +5,7 @@
 // ============================================================
 
 // TODO: cole aqui a URL do seu Web App (Implantar > Nova implantação > Execute como Web App)
-const API_URL = 'https://script.google.com/a/macros/adtilesexport.com/s/AKfycbw4HG1u_PyOdyyWQwU-HfuoOPIkfxSN-ATygub3zg02b1zpuFUGpj6LgrTet8YnoT4Y/exec';
+const API_URL = 'https://script.google.com/a/macros/adtilesexport.com/s/AKfycbwrfcibMHUWgpvP19Lkrp14l-MiUlzhRxZuq1VzVHEU8erScgxeaBEnsHtBVai3DWbu0A/exec';
 
 async function _apiGet(action, params = {}) {
   const url = new URL(API_URL);
