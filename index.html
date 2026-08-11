@@ -3046,7 +3046,7 @@ function catAutoTranslate(){const pt=(document.getElementById('catTituloPt')?.va
 
 // HELPERS
 function _resizeImg(dataUrl,maxPx,quality){return new Promise(resolve=>{if(!dataUrl||dataUrl===''){resolve(dataUrl);return;}const img=new Image();img.onload=()=>{const scale=Math.min(1,maxPx/Math.max(img.width||1,img.height||1));if(scale>=0.99){resolve(dataUrl);return;}const w=Math.round(img.width*scale),h=Math.round(img.height*scale);const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);resolve(c.toDataURL('image/jpeg',quality||0.80));};img.onerror=()=>resolve(dataUrl);img.src=dataUrl;});}
-function _addImgProp(doc,data,fmt,cx,cy,maxW,maxH,alignH,alias){try{const pr=doc.getImageProperties(data);const ratio=pr.width/pr.height;let w,h;if(ratio>maxW/maxH){w=maxW;h=maxW/ratio;}else{h=maxH;w=maxH*ratio;}let x=cx;if(alignH==='center')x=cx+(maxW-w)/2;else if(alignH==='right')x=cx+maxW-w;const y=cy+(maxH-h)/2;doc.addImage(data,fmt,x,y,w,h,alias||undefined);return{w,h,x,y};}catch(e){return null;}}
+function _addImgProp(doc,data,fmt,cx,cy,maxW,maxH,alignH,alias){try{const pr=doc.getImageProperties(data);const ratio=pr.width/pr.height;let w,h;if(ratio>maxW/maxH){w=maxW;h=maxW/ratio;}else{h=maxH;w=maxH*ratio;}let x=cx;if(alignH==='center')x=cx+(maxW-w)/2;else if(alignH==='right')x=cx+maxW-w;const y=cy+(maxH-h)/2;doc.addImage(data,fmt,x,y,w,h,alias||undefined);return{w,h,x,y};}catch(e){console.error('[catálogo] _addImgProp falhou:',e,data?String(data).slice(0,60):data);return null;}}
 function _formatoToInch(fmt){const m=String(fmt||'').match(/(\d+(?:[.,]\d+)?)/g);if(!m||m.length<2)return'';const a=parseFloat(m[0].replace(',','.'));const b=parseFloat(m[1].replace(',','.'));if(isNaN(a)||isNaN(b))return'';return`${Math.round(a/2.54)}' x ${Math.round(b/2.54)}'`;}
 function _n(v,dec,suf){const n=+(v||0);if(!n)return'';return n.toFixed(dec||0)+(suf||'');}
 
@@ -3318,7 +3318,7 @@ async function gerarCatalogoPdf(){
       if(nF===0){y+=10;}
       else if(nF===1){
         const fi=availImgs[0];const maxH=100,maxW=128;
-        try{const pr=doc.getImageProperties(fi.img);const ratio=pr.width/pr.height;let iW=maxW,iH=maxW/ratio;if(iH>maxH){iH=maxH;iW=maxH*ratio;}const ix=ml+(cw-iW)/2;doc.addImage(fi.img,'JPEG',ix,y,iW,iH,`p_${p.codigo}_f${fi.n}`);y+=iH+4;}catch(e){y+=10;}
+        try{const pr=doc.getImageProperties(fi.img);const ratio=pr.width/pr.height;let iW=maxW,iH=maxW/ratio;if(iH>maxH){iH=maxH;iW=maxH*ratio;}const ix=ml+(cw-iW)/2;doc.addImage(fi.img,'JPEG',ix,y,iW,iH,`p_${p.codigo}_f${fi.n}`);y+=iH+4;}catch(e){console.error('[catálogo] falha ao inserir foto do produto:',e,fi.img?String(fi.img).slice(0,60):fi.img);y+=10;}
       }else{
         const gap=3,cW=(cw-gap*(nF-1))/nF,maxH=82;let usedH=0;
         availImgs.forEach((fi,idx)=>{
