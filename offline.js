@@ -218,7 +218,7 @@ function showToastSafe(msg, type) {
 async function _imagemCacheParaBase64(url) {
   if (!('caches' in window)) return null;
   try {
-    const cache = await caches.open('adexport-images-v2');
+    const cache = await caches.open('adexport-images-v3');
     const resp = await cache.match(url);
     if (!resp) return null;
     const blob = await resp.blob();
@@ -254,33 +254,37 @@ function _variantesUrlImagem(id) {
 
 async function _cachearImagensLote(urls) {
   if (!urls.length || !('caches' in window)) return;
-  const cache = await caches.open('adexport-images-v2');
+  const cache = await caches.open('adexport-images-v3');
 
-  // Mapa: url original (da planilha) -> todas as variantes que precisam do mesmo conteúdo
-  const alvosPorOriginal = {};
+  // Para cada foto: id do Drive, todas as URLs que precisam do mesmo conteúdo,
+  // e a URL de ALTA resolução que vamos efetivamente buscar no servidor
+  // (em vez da versão pequena que fica salva na planilha).
+  const infoPorOriginal = {};
   const faltando = [];
   for (const u of urls) {
     const id = _extrairIdDrive(u);
     const variantes = [u, ..._variantesUrlImagem(id)];
-    alvosPorOriginal[u] = variantes;
-    // já está tudo cacheado?
+    const urlAltaRes = id ? ('https://drive.google.com/thumbnail?id=' + id + '&sz=w2000') : u;
+    infoPorOriginal[u] = { variantes, urlAltaRes };
     let completo = true;
     for (const v of variantes) { if (!(await cache.match(v))) { completo = false; break; } }
     if (!completo) faltando.push(u);
   }
   if (!faltando.length) return;
 
+  const urlsParaBuscar = faltando.map((u) => infoPorOriginal[u].urlAltaRes);
   try {
-    const raw = await _rpcCall('buscarImagensBase64', [JSON.stringify(faltando)], 60000, 4);
+    const raw = await _rpcCall('buscarImagensBase64', [JSON.stringify(urlsParaBuscar)], 60000, 4);
     const env = JSON.parse(raw);
     if (!env.success) return;
     for (const u of faltando) {
-      const dataUrl = env.data[u];
+      const info = infoPorOriginal[u];
+      const dataUrl = env.data[info.urlAltaRes];
       if (!dataUrl) continue;
       try {
         const blob = _dataUrlParaBlob(dataUrl);
         const respHeaders = { 'Content-Type': blob.type || 'image/jpeg' };
-        for (const v of alvosPorOriginal[u]) {
+        for (const v of info.variantes) {
           await cache.put(v, new Response(blob, { headers: respHeaders }));
         }
       } catch (e) { /* imagem com problema, pula */ }
