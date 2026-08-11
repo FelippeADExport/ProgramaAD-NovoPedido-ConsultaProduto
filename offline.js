@@ -7,7 +7,7 @@
 // ============================================================
 
 // >>> Cole aqui a URL do seu Web App (Implantar > Gerenciar implantações) <<<
-const API_URL = 'https://script.google.com/macros/s/AKfycbzISnyNuDMmpYNseXpWsX4KpMTtWIqoEQ1F8jdcBsLAloAiKG6l9DdpP7i3z9GWgls7Xw/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycby4W8UGzFEDHr8iDtqd-jmbC7WxgjVfD5yLqLDTNDFdYwrIDtYU1eMvk44arY4hu5rUBA/exec';
 
 // Funções cujo resultado fica salvo localmente para reuso offline
 const CACHEABLE_READS = {
