@@ -5,7 +5,7 @@
 // ============================================================
 
 // TODO: cole aqui a URL do seu Web App (Implantar > Nova implantação > Execute como Web App)
-const API_URL = 'https://script.google.com/macros/s/AKfycbx-MNx7NTPepZvV0WA9KFK1gNOIkDMQjoGcHM9Poh9J9P4Zgbz7IEhSp2iCENmEAqysCA/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzISnyNuDMmpYNseXpWsX4KpMTtWIqoEQ1F8jdcBsLAloAiKG6l9DdpP7i3z9GWgls7Xw/exec';
 
 async function _apiGet(action, params = {}) {
   const url = new URL(API_URL);
@@ -42,9 +42,12 @@ const API = {
   buscarPortos: () => _apiGet('portos'),
   buscarPedidos: () => _apiGet('pedidos'),
   buscarItensPedido: (numero) => _apiGet('itens_pedido', { numero }),
+  buscarCatalogoConfig: () => _apiGet('catalogo_config'),
+  buscarLocalUsoDescricoes: () => _apiGet('local_uso_descricoes'),
 
   // ids: array de fileId do Drive. Retorna { fileId: base64DataUrl }
   buscarImagensLote: (ids) => _apiPost('imagens', { ids }),
+  buscarImagensPorUrl: (urls) => _apiPost('imagens_catalogo', { urls }),
 
   salvarPedido: (pedido) => _apiPost('pedido', pedido),
   atualizarPedido: (pedido, numeroOriginal, linkPdfAntigo) => _apiPost('atualizar_pedido', { pedido, numeroOriginal, linkPdfAntigo }),
@@ -52,5 +55,6 @@ const API = {
   gerarPdf: (pedido) => _apiPost('gerar_pdf', pedido),
   salvarCliente: (cliente) => _apiPost('cliente_novo', cliente),
   atualizarCliente: (cliente) => _apiPost('cliente_editar', cliente),
-  salvarConfig: (config) => _apiPost('salvar_config', config)
+  salvarConfig: (config) => _apiPost('salvar_config', config),
+  salvarCatalogoConfig: (config) => _apiPost('salvar_catalogo_config', config)
 };

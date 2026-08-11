@@ -28,6 +28,12 @@ function _apiRoteadorGet(e) {
       case 'itens_pedido':
         resultado = JSON.parse(getItensPedido(e.parameter.numero));
         break;
+      case 'catalogo_config':
+        resultado = JSON.parse(getCatalogoConfig());
+        break;
+      case 'local_uso_descricoes':
+        resultado = JSON.parse(getLocalUsoDescricoes());
+        break;
       default:
         resultado = { success: false, error: 'Ação GET desconhecida: ' + action };
     }
@@ -68,6 +74,12 @@ function _apiRoteadorPost(e) {
         break;
       case 'salvar_config':
         resultado = JSON.parse(salvarConfig(JSON.stringify(body)));
+        break;
+      case 'salvar_catalogo_config':
+        resultado = JSON.parse(salvarCatalogoConfig(JSON.stringify(body)));
+        break;
+      case 'imagens_catalogo':
+        resultado = JSON.parse(buscarImagensBase64(JSON.stringify(body.urls || [])));
         break;
       default:
         resultado = { success: false, error: 'Ação POST desconhecida: ' + action };

@@ -311,29 +311,109 @@
 <div id="tab-catalogo" class="tab-content">
   <div class="main">
     <div class="page-title">📄 Catálogo PDF</div>
-    <div class="page-sub">Gere um catálogo em PDF com os produtos selecionados (funciona offline se as fotos já estiverem baixadas)</div>
+    <div class="page-sub">Gere catálogos profissionais em PDF · funciona offline se as fotos já estiverem baixadas</div>
 
-    <div class="section">
-      <div class="section-header"><div class="section-title">Opções</div></div>
-      <div class="section-body">
-        <div class="grid grid-3">
-          <div><label>Formato</label><select id="cat-filtro-formato" onchange="catAtualizarNomes()"><option value="">Todos</option></select></div>
-          <div><label>Produto</label><select id="cat-filtro-produto"><option value="">Selecione...</option></select></div>
-          <div style="display:flex;align-items:flex-end"><button class="btn btn-secondary btn-full" onclick="catAdicionarSelecionado()">+ Adicionar</button></div>
+    <div class="grid grid-2">
+      <div>
+        <div class="section">
+          <div class="section-header"><div class="section-title">🌐 Idioma</div></div>
+          <div class="section-body">
+            <label>Idioma principal (texto em destaque)</label>
+            <div class="price-toggle">
+              <button type="button" class="price-btn active" id="catLangMainPT" onclick="catSetMainLang('pt',this)">PT</button>
+              <button type="button" class="price-btn" id="catLangMainES" onclick="catSetMainLang('es',this)">ES</button>
+              <button type="button" class="price-btn" id="catLangMainEN" onclick="catSetMainLang('en',this)">EN</button>
+            </div>
+            <label class="mt-12">Idiomas secundários (texto menor abaixo)</label>
+            <div class="price-toggle">
+              <button type="button" class="price-btn" id="catLangSec_pt" onclick="this.classList.toggle('active')" style="display:none">PT</button>
+              <button type="button" class="price-btn" id="catLangSec_es" onclick="this.classList.toggle('active')">ES</button>
+              <button type="button" class="price-btn" id="catLangSec_en" onclick="this.classList.toggle('active')">EN</button>
+            </div>
+          </div>
         </div>
-        <button class="btn btn-secondary mt-8" onclick="catAdicionarTodosFormato()">+ Adicionar todos do formato</button>
-        <div class="checkbox-row"><input type="checkbox" id="cat-mostrar-preco" checked> Mostrar preço (FOB)</div>
+
+        <div class="section">
+          <div class="section-header"><div class="section-title">🖼 Capa</div></div>
+          <div class="section-body">
+            <label>Imagem de capa (URL)</label><input type="text" id="catCapaUrl" placeholder="https://drive.google.com/...">
+            <label class="mt-8">Logo do fornecedor (URL)</label><input type="text" id="catLogoFornUrl" placeholder="https://drive.google.com/...">
+            <label class="mt-8">Logo Representante (URL)</label><input type="text" id="catLogoAdUrl" placeholder="https://drive.google.com/...">
+            <label class="mt-8">Título</label><input type="text" id="catTituloPt" placeholder="Ex: LINHA 59 X 59 CM RETIFICADA">
+            <label class="mt-8">Linha 1 (subtítulo)</label><input type="text" id="catTituloEs">
+            <label class="mt-8">Linha 2 (subtítulo)</label><input type="text" id="catTituloEn">
+            <div class="grid grid-2 mt-8">
+              <div><label>Mês-Ano</label><input type="text" id="catAno" placeholder="07/2026"></div>
+              <div><label>URL do site (capa)</label><input type="text" id="catSiteUrl"></div>
+            </div>
+            <button type="button" class="btn btn-secondary mt-8" onclick="catSalvarConfig()">💾 Salvar como padrão</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-header"><div class="section-title">⚙️ Opções do PDF</div></div>
+          <div class="section-body">
+            <label>📦 Packing (página final)</label>
+            <div class="price-toggle">
+              <button type="button" class="price-btn" id="catPackAmericano" onclick="this.classList.toggle('active')">Pallet Americano</button>
+              <button type="button" class="price-btn" id="catPackEuro" onclick="this.classList.toggle('active')">Europallet</button>
+            </div>
+            <label class="mt-12">📷 Foto do produto</label>
+            <div class="price-toggle">
+              <button type="button" class="price-btn active" id="catFoto1" onclick="this.classList.toggle('active')">Foto 1</button>
+              <button type="button" class="price-btn" id="catFoto2" onclick="this.classList.toggle('active')">Foto 2</button>
+              <button type="button" class="price-btn" id="catFoto3" onclick="this.classList.toggle('active')">Foto 3</button>
+            </div>
+            <label class="mt-12">💲 Preço (USD/m²)</label>
+            <button type="button" class="price-btn btn-full" id="catMostrarPreco" onclick="catToggle_Preco()">Exibir preço no catálogo</button>
+            <div id="catPrecoOpts" class="hidden mt-8">
+              <div class="price-toggle">
+                <button type="button" class="price-btn active" id="catMostrarFob" onclick="this.classList.toggle('active');catRenderSelecionados()">FOB</button>
+                <button type="button" class="price-btn" id="catMostrarExw" onclick="this.classList.toggle('active');catRenderSelecionados()">EXW</button>
+              </div>
+              <button type="button" class="price-btn btn-full mt-8" id="catMostrarEuroPallet" onclick="catToggle_EuroPallet()">+ Europallet</button>
+              <div id="catEuroAdicionalWrap" class="hidden mt-8">
+                <label>Adicional (USD/m²)</label>
+                <input type="number" step="0.01" id="catAdicionalEuro" value="0" oninput="catRenderSelecionados()">
+              </div>
+            </div>
+            <label class="mt-12">||||| Código de Barras</label>
+            <button type="button" class="price-btn btn-full" id="catMostrarBarcode" onclick="this.classList.toggle('active')">Exibir número do código de barras</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section">
+          <div class="section-header"><div class="section-title">📋 Produtos (<span id="catContador">0</span>)</div></div>
+          <div class="section-body">
+            <label>Filtrar por formato</label>
+            <div style="display:flex;gap:6px">
+              <select id="catFiltroFormato" onchange="catAtualizarFiltroNomes()" style="flex:1"></select>
+              <button type="button" class="btn btn-secondary" onclick="catAdicionarTodosFormato()" title="Adicionar todos">+ Todos</button>
+            </div>
+            <label class="mt-8">Selecionar produto</label>
+            <div style="display:flex;gap:6px">
+              <select id="catFiltroProduto" style="flex:1"><option value="">Selecione...</option></select>
+              <button type="button" class="btn btn-primary" onclick="catAdicionarDaLista()">+ Add</button>
+            </div>
+            <label class="mt-8">Buscar por código ou nome</label>
+            <div class="autocomplete-wrap">
+              <input type="text" id="catBuscaCodigo" placeholder="Digite código ou nome..." oninput="catBuscaInput()">
+              <div class="autocomplete-list hidden" id="cat-busca-dropdown"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:10px;margin-top:14px">
+              <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Selecionados</span>
+              <button type="button" class="btn btn-secondary" onclick="catLimparSelecionados()">🗑 Limpar</button>
+            </div>
+            <div id="catListaSelecionados" class="mt-8"><div class="empty-state"><div class="sub">Nenhum produto selecionado</div></div></div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-header"><div class="section-title">Produtos selecionados (<span id="cat-contagem">0</span>)</div></div>
-      <div class="section-body" id="cat-lista-selecionados">
-        <div class="empty-state"><div class="sub">Nenhum produto selecionado</div></div>
-      </div>
-    </div>
-
-    <button class="btn btn-primary btn-full" id="cat-btn-gerar" onclick="gerarCatalogoPdf()">📄 Gerar PDF do catálogo</button>
+    <button type="button" class="btn btn-primary btn-full mt-8" id="btnGerarCatalogo" onclick="gerarCatalogoPdf()">📄 Gerar PDF</button>
+    <div id="catGerandoStatus" class="page-sub mt-8" style="display:none"></div>
   </div>
 </div>
 

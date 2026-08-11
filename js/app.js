@@ -33,7 +33,7 @@ function trocarAba(nome) {
   document.querySelectorAll('.tab-content').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + nome));
   if (nome === 'todos') carregarTodosPedidos();
   if (nome === 'clientes') { montarFiltrosClientes(); renderizarClientes(); }
-  if (nome === 'catalogo') { montarFiltrosCatalogo(); catRenderSelecionados(); }
+  if (nome === 'catalogo') catInit();
   if (nome === 'config') carregarConfiguracoesUI();
 }
 
