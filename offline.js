@@ -150,8 +150,15 @@ async function _dispatch(fn, args, successCb, failureCb) {
       }
       console.log('[catálogo] imagens no cache local:', urls.length - faltando.length, '/ faltando buscar:', faltando.length);
       if (faltando.length && navigator.onLine) {
-        const raw = await _rpcCall(fn, [JSON.stringify(faltando)], 60000);
-        const env = JSON.parse(raw);
+        let env;
+        try {
+          const raw = await _rpcCall(fn, [JSON.stringify(faltando)], 60000);
+          env = JSON.parse(raw);
+        } catch (e1) {
+          await _esperar(1200);
+          const raw2 = await _rpcCall(fn, [JSON.stringify(faltando)], 60000);
+          env = JSON.parse(raw2);
+        }
         if (env.success) {
           Object.assign(data, env.data);
           const vazias = faltando.filter((u) => !env.data[u]);
@@ -210,7 +217,7 @@ async function _imagemCacheParaBase64(url) {
   } catch (e) { return null; }
 }
 
-async function _cachearImagensLote(urls) {
+async function _cachearImagensLote(urls, tentativa) {
   if (!urls.length || !('caches' in window)) return;
   const cache = await caches.open('adexport-images-v2');
   const faltando = [];
@@ -231,8 +238,16 @@ async function _cachearImagensLote(urls) {
         await cache.put(u, new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' } }));
       } catch (e) { /* imagem com problema, pula */ }
     }
-  } catch (e) { /* sem internet nesse momento, tenta na próxima sincronização */ }
+  } catch (e) {
+    // Falha (ex: 404 esporádico do Google em chamadas externas repetidas) — tenta 1x de novo após pausa
+    if (!tentativa) {
+      await _esperar(1200);
+      return _cachearImagensLote(urls, 1);
+    }
+  }
 }
+
+function _esperar(ms) { return new Promise((res) => setTimeout(res, ms)); }
 
 function _dataUrlParaBlob(dataUrl) {
   const [meta, base64] = dataUrl.split(',');
@@ -248,13 +263,14 @@ function _dataUrlParaBlob(dataUrl) {
 async function sincronizarTodasImagens(produtos, onProgress) {
   const urls = [];
   produtos.forEach((p) => { [p.imagem, p.imagem2, p.imagem3].forEach((u) => { if (u) urls.push(u); }); });
-  const LOTE = 1;
+  const LOTE = 6;
   let feito = 0;
   for (let i = 0; i < urls.length; i += LOTE) {
     const lote = urls.slice(i, i + LOTE);
     await _cachearImagensLote(lote);
     feito += lote.length;
     onProgress && onProgress(feito, urls.length);
+    await _esperar(350); // pequena pausa entre lotes pra não sobrecarregar chamadas externas
   }
 }
 
