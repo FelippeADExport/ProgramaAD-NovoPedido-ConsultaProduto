@@ -85,9 +85,9 @@ async function _filaRemover(id) {
 // ============================================================
 // RPC — chama a mesma função do Codigo.gs via fetch (POST)
 // ============================================================
-async function _rpcCall(fn, args) {
+async function _rpcCall(fn, args, timeoutMs) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 4000); // não espera mais que 4s sem internet
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 4000);
   try {
     const resp = await fetch(API_URL + '?action=rpc', {
       method: 'POST',
@@ -99,6 +99,9 @@ async function _rpcCall(fn, args) {
     const env = await resp.json();
     if (!env.ok) throw new Error(env.error || 'Erro no servidor');
     return env.result; // string bruta, igual ao que a função do Apps Script retorna
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Tempo esgotado (sem internet ou servidor lento)');
+    throw e;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -146,7 +149,7 @@ async function _dispatch(fn, args, successCb, failureCb) {
         if (b64) data[u] = b64; else faltando.push(u);
       }
       if (faltando.length && navigator.onLine) {
-        const raw = await _rpcCall(fn, [JSON.stringify(faltando)]);
+        const raw = await _rpcCall(fn, [JSON.stringify(faltando)], 45000);
         const env = JSON.parse(raw);
         if (env.success) Object.assign(data, env.data);
       }
@@ -207,7 +210,7 @@ async function _cachearImagensLote(urls) {
   }
   if (!faltando.length) return;
   try {
-    const raw = await _rpcCall('buscarImagensBase64', [JSON.stringify(faltando)]);
+    const raw = await _rpcCall('buscarImagensBase64', [JSON.stringify(faltando)], 45000);
     const env = JSON.parse(raw);
     if (!env.success) return;
     for (const u of faltando) {
@@ -235,7 +238,7 @@ function _dataUrlParaBlob(dataUrl) {
 async function sincronizarTodasImagens(produtos, onProgress) {
   const urls = [];
   produtos.forEach((p) => { [p.imagem, p.imagem2, p.imagem3].forEach((u) => { if (u) urls.push(u); }); });
-  const LOTE = 6;
+  const LOTE = 4;
   let feito = 0;
   for (let i = 0; i < urls.length; i += LOTE) {
     const lote = urls.slice(i, i + LOTE);
