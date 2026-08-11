@@ -148,13 +148,23 @@ async function _dispatch(fn, args, successCb, failureCb) {
         const b64 = await _imagemCacheParaBase64(u);
         if (b64) data[u] = b64; else faltando.push(u);
       }
+      console.log('[catálogo] imagens no cache local:', urls.length - faltando.length, '/ faltando buscar:', faltando.length);
       if (faltando.length && navigator.onLine) {
         const raw = await _rpcCall(fn, [JSON.stringify(faltando)], 60000);
         const env = JSON.parse(raw);
-        if (env.success) Object.assign(data, env.data);
+        if (env.success) {
+          Object.assign(data, env.data);
+          const vazias = faltando.filter((u) => !env.data[u]);
+          if (vazias.length) console.warn('[catálogo] o servidor não conseguiu buscar estas imagens:', vazias);
+        } else {
+          console.warn('[catálogo] buscarImagensBase64 retornou erro:', env.error);
+        }
       }
+      const semImagem = urls.filter((u) => !data[u]);
+      if (semImagem.length) console.warn('[catálogo] URLs sem imagem no resultado final:', semImagem);
       successCb && successCb(JSON.stringify({ success: true, data }));
     } catch (e) {
+      console.error('[catálogo] erro ao buscar imagens:', e);
       failureCb && failureCb({ message: e.message });
     }
     return;
