@@ -86,15 +86,22 @@ async function _filaRemover(id) {
 // RPC — chama a mesma função do Codigo.gs via fetch (POST)
 // ============================================================
 async function _rpcCall(fn, args) {
-  const resp = await fetch(API_URL + '?action=rpc', {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ fn, args })
-  });
-  if (!resp.ok) throw new Error('HTTP ' + resp.status);
-  const env = await resp.json();
-  if (!env.ok) throw new Error(env.error || 'Erro no servidor');
-  return env.result; // string bruta, igual ao que a função do Apps Script retorna
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000); // não espera mais que 4s sem internet
+  try {
+    const resp = await fetch(API_URL + '?action=rpc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn, args }),
+      signal: controller.signal
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const env = await resp.json();
+    if (!env.ok) throw new Error(env.error || 'Erro no servidor');
+    return env.result; // string bruta, igual ao que a função do Apps Script retorna
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 // ============================================================
@@ -190,18 +197,41 @@ async function _imagemCacheParaBase64(url) {
   } catch (e) { return null; }
 }
 
-async function _cachearImagem(url) {
-  if (!url || !('caches' in window)) return;
+async function _cachearImagensLote(urls) {
+  if (!urls.length || !('caches' in window)) return;
+  const cache = await caches.open('adexport-images');
+  const faltando = [];
+  for (const u of urls) {
+    const ja = await cache.match(u);
+    if (!ja) faltando.push(u);
+  }
+  if (!faltando.length) return;
   try {
-    const cache = await caches.open('adexport-images');
-    const ja = await cache.match(url);
-    if (ja) return;
-    const resp = await fetch(url, { mode: 'no-cors' });
-    await cache.put(url, resp);
-  } catch (e) { /* imagem indisponível, ignora */ }
+    const raw = await _rpcCall('buscarImagensBase64', [JSON.stringify(faltando)]);
+    const env = JSON.parse(raw);
+    if (!env.success) return;
+    for (const u of faltando) {
+      const dataUrl = env.data[u];
+      if (!dataUrl) continue;
+      try {
+        const blob = _dataUrlParaBlob(dataUrl);
+        await cache.put(u, new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' } }));
+      } catch (e) { /* imagem com problema, pula */ }
+    }
+  } catch (e) { /* sem internet nesse momento, tenta na próxima sincronização */ }
 }
 
-// Baixa (em paralelo controlado) até 3 fotos de cada produto
+function _dataUrlParaBlob(dataUrl) {
+  const [meta, base64] = dataUrl.split(',');
+  const mimeMatch = meta.match(/data:(.*?);base64/);
+  const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+// Baixa (em lotes, via Apps Script) até 3 fotos de cada produto
 async function sincronizarTodasImagens(produtos, onProgress) {
   const urls = [];
   produtos.forEach((p) => { [p.imagem, p.imagem2, p.imagem3].forEach((u) => { if (u) urls.push(u); }); });
@@ -209,7 +239,7 @@ async function sincronizarTodasImagens(produtos, onProgress) {
   let feito = 0;
   for (let i = 0; i < urls.length; i += LOTE) {
     const lote = urls.slice(i, i + LOTE);
-    await Promise.all(lote.map((u) => _cachearImagem(u)));
+    await _cachearImagensLote(lote);
     feito += lote.length;
     onProgress && onProgress(feito, urls.length);
   }
@@ -243,10 +273,12 @@ async function sincronizarFilaPedidos() {
 
 async function sincronizacaoCompleta() {
   const bar = document.getElementById('offlineSyncBar');
+  if (!bar) return;
   bar.style.display = 'block';
   bar.textContent = 'Baixando fotos dos produtos...';
   try {
     const produtos = (typeof PRODUCTS !== 'undefined' && PRODUCTS.length) ? PRODUCTS : JSON.parse((await _cachePegar('getProdutos')) || '{"data":[]}').data;
+    if (!produtos || !produtos.length) { bar.textContent = 'Nenhum produto carregado ainda'; setTimeout(() => { bar.style.display = 'none'; }, 2500); return; }
     await sincronizarTodasImagens(produtos, (feito, total) => {
       bar.textContent = `Baixando fotos... ${feito}/${total}`;
     });
@@ -273,6 +305,18 @@ window.addEventListener('DOMContentLoaded', () => {
   _atualizarIndicadorConexao();
   atualizarBadgeOffline();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+
+  // Segurança: se o carregamento travar (ex: timeout inesperado), libera o app
+  // mesmo assim depois de alguns segundos, em vez de ficar preso na tela de loading.
+  setTimeout(() => {
+    const loader = document.getElementById('loader');
+    const app = document.getElementById('app');
+    if (loader && loader.style.display !== 'none') {
+      loader.style.display = 'none';
+      if (app) app.style.display = 'block';
+      showToastSafe('Alguns dados podem estar desatualizados (sem internet)', 'error');
+    }
+  }, 7000);
 });
 
 // Depois que o app original terminar de carregar (window.onload), baixa as
