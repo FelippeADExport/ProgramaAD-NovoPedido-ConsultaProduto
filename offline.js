@@ -149,7 +149,7 @@ async function _dispatch(fn, args, successCb, failureCb) {
         if (b64) data[u] = b64; else faltando.push(u);
       }
       if (faltando.length && navigator.onLine) {
-        const raw = await _rpcCall(fn, [JSON.stringify(faltando)], 45000);
+        const raw = await _rpcCall(fn, [JSON.stringify(faltando)], 60000);
         const env = JSON.parse(raw);
         if (env.success) Object.assign(data, env.data);
       }
@@ -210,7 +210,7 @@ async function _cachearImagensLote(urls) {
   }
   if (!faltando.length) return;
   try {
-    const raw = await _rpcCall('buscarImagensBase64', [JSON.stringify(faltando)], 45000);
+    const raw = await _rpcCall('buscarImagensBase64', [JSON.stringify(faltando)], 60000);
     const env = JSON.parse(raw);
     if (!env.success) return;
     for (const u of faltando) {
@@ -238,7 +238,7 @@ function _dataUrlParaBlob(dataUrl) {
 async function sincronizarTodasImagens(produtos, onProgress) {
   const urls = [];
   produtos.forEach((p) => { [p.imagem, p.imagem2, p.imagem3].forEach((u) => { if (u) urls.push(u); }); });
-  const LOTE = 4;
+  const LOTE = 1;
   let feito = 0;
   for (let i = 0; i < urls.length; i += LOTE) {
     const lote = urls.slice(i, i + LOTE);
