@@ -7,7 +7,10 @@
 // ============================================================
 
 // >>> Cole aqui a URL do seu Web App (Implantar > Gerenciar implantações) <<<
-const API_URL = 'https://script.google.com/macros/s/AKfycby4W8UGzFEDHr8iDtqd-jmbC7WxgjVfD5yLqLDTNDFdYwrIDtYU1eMvk44arY4hu5rUBA/exec';
+// Aponta pro Cloudflare Worker (evita a instabilidade de CORS do Apps Script
+// quando chamado direto do navegador). O Worker repassa pro Apps Script
+// de servidor pra servidor por baixo dos panos.
+const API_URL = 'https://ad-export-proxy.felippe-6c1.workers.dev';
 
 // Funções cujo resultado fica salvo localmente para reuso offline
 const CACHEABLE_READS = {
@@ -85,7 +88,7 @@ async function _filaRemover(id) {
 // ============================================================
 // RPC — chama a mesma função do Codigo.gs via fetch (POST)
 // ============================================================
-async function _rpcCall(fn, args, timeoutMs) {
+async function _rpcCallOnce(fn, args, timeoutMs) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 4000);
   try {
@@ -105,6 +108,24 @@ async function _rpcCall(fn, args, timeoutMs) {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+// O Apps Script Web App às vezes falha de forma intermitente quando chamado
+// de fora do Google (CORS no redirecionamento interno do Google) — isso não
+// é um erro real, insistir de novo quase sempre resolve. Por isso toda
+// chamada tenta algumas vezes antes de desistir.
+async function _rpcCall(fn, args, timeoutMs, tentativas) {
+  const maxTentativas = tentativas || 3;
+  let ultimoErro;
+  for (let i = 0; i < maxTentativas; i++) {
+    try {
+      return await _rpcCallOnce(fn, args, timeoutMs);
+    } catch (e) {
+      ultimoErro = e;
+      if (i < maxTentativas - 1) await _esperar(600 * (i + 1));
+    }
+  }
+  throw ultimoErro;
 }
 
 // ============================================================
@@ -150,15 +171,8 @@ async function _dispatch(fn, args, successCb, failureCb) {
       }
       console.log('[catálogo] imagens no cache local:', urls.length - faltando.length, '/ faltando buscar:', faltando.length);
       if (faltando.length && navigator.onLine) {
-        let env;
-        try {
-          const raw = await _rpcCall(fn, [JSON.stringify(faltando)], 60000);
-          env = JSON.parse(raw);
-        } catch (e1) {
-          await _esperar(1200);
-          const raw2 = await _rpcCall(fn, [JSON.stringify(faltando)], 60000);
-          env = JSON.parse(raw2);
-        }
+        const raw = await _rpcCall(fn, [JSON.stringify(faltando)], 60000, 4);
+        const env = JSON.parse(raw);
         if (env.success) {
           Object.assign(data, env.data);
           const vazias = faltando.filter((u) => !env.data[u]);
@@ -217,7 +231,7 @@ async function _imagemCacheParaBase64(url) {
   } catch (e) { return null; }
 }
 
-async function _cachearImagensLote(urls, tentativa) {
+async function _cachearImagensLote(urls) {
   if (!urls.length || !('caches' in window)) return;
   const cache = await caches.open('adexport-images-v2');
   const faltando = [];
@@ -227,7 +241,7 @@ async function _cachearImagensLote(urls, tentativa) {
   }
   if (!faltando.length) return;
   try {
-    const raw = await _rpcCall('buscarImagensBase64', [JSON.stringify(faltando)], 60000);
+    const raw = await _rpcCall('buscarImagensBase64', [JSON.stringify(faltando)], 60000, 4);
     const env = JSON.parse(raw);
     if (!env.success) return;
     for (const u of faltando) {
@@ -238,13 +252,7 @@ async function _cachearImagensLote(urls, tentativa) {
         await cache.put(u, new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' } }));
       } catch (e) { /* imagem com problema, pula */ }
     }
-  } catch (e) {
-    // Falha (ex: 404 esporádico do Google em chamadas externas repetidas) — tenta 1x de novo após pausa
-    if (!tentativa) {
-      await _esperar(1200);
-      return _cachearImagensLote(urls, 1);
-    }
-  }
+  } catch (e) { /* mesmo com as tentativas, não conseguiu — segue pro próximo lote */ }
 }
 
 function _esperar(ms) { return new Promise((res) => setTimeout(res, ms)); }
