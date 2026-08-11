@@ -197,7 +197,7 @@ function showToastSafe(msg, type) {
 async function _imagemCacheParaBase64(url) {
   if (!('caches' in window)) return null;
   try {
-    const cache = await caches.open('adexport-images');
+    const cache = await caches.open('adexport-images-v2');
     const resp = await cache.match(url);
     if (!resp) return null;
     const blob = await resp.blob();
@@ -212,7 +212,7 @@ async function _imagemCacheParaBase64(url) {
 
 async function _cachearImagensLote(urls) {
   if (!urls.length || !('caches' in window)) return;
-  const cache = await caches.open('adexport-images');
+  const cache = await caches.open('adexport-images-v2');
   const faltando = [];
   for (const u of urls) {
     const ja = await cache.match(u);

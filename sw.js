@@ -1,6 +1,6 @@
 // Service Worker — AD Export (baseado no Index.html original)
-const SHELL_CACHE = 'adexport-shell-v1';
-const IMG_CACHE = 'adexport-images';
+const SHELL_CACHE = 'adexport-shell-v2';
+const IMG_CACHE = 'adexport-images-v2';
 const SHELL_FILES = [
   './',
   './index.html',
