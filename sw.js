@@ -34,8 +34,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = event.request.url;
 
-  // Fotos dos produtos (Google Drive) — cache-first, já preenchido por offline.js
-  if (url.includes('drive.google.com/thumbnail')) {
+  // Fotos dos produtos (Google Drive / Google Photos) — cache-first, já
+  // preenchido por offline.js. O app pode pedir a mesma imagem em domínios
+  // diferentes (drive.google.com/thumbnail, drive.google.com/uc, lh3.googleusercontent.com),
+  // por isso reconhecemos todos.
+  if (url.includes('drive.google.com/thumbnail') || url.includes('drive.google.com/uc') || url.includes('lh3.googleusercontent.com')) {
     event.respondWith(
       caches.open(IMG_CACHE).then((cache) =>
         cache.match(event.request).then((cached) => cached || fetch(event.request).catch(() => cached))

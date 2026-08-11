@@ -231,15 +231,45 @@ async function _imagemCacheParaBase64(url) {
   } catch (e) { return null; }
 }
 
+function _extrairIdDrive(url) {
+  if (!url) return '';
+  let m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+  m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+  return '';
+}
+
+// Réplica exata de cnsBuildUrl do index.html — o app monta a URL da foto
+// de formas diferentes dependendo do navegador (Safari/iPad usa lh3.googleusercontent.com
+// primeiro). Por isso cacheamos a MESMA imagem sob TODAS as variações possíveis.
+function _variantesUrlImagem(id) {
+  if (!id) return [];
+  return [
+    'https://lh3.googleusercontent.com/d/' + id + '=s2000',
+    'https://drive.google.com/uc?export=view&id=' + id,
+    'https://drive.google.com/thumbnail?id=' + id + '&sz=w2000'
+  ];
+}
+
 async function _cachearImagensLote(urls) {
   if (!urls.length || !('caches' in window)) return;
   const cache = await caches.open('adexport-images-v2');
+
+  // Mapa: url original (da planilha) -> todas as variantes que precisam do mesmo conteúdo
+  const alvosPorOriginal = {};
   const faltando = [];
   for (const u of urls) {
-    const ja = await cache.match(u);
-    if (!ja) faltando.push(u);
+    const id = _extrairIdDrive(u);
+    const variantes = [u, ..._variantesUrlImagem(id)];
+    alvosPorOriginal[u] = variantes;
+    // já está tudo cacheado?
+    let completo = true;
+    for (const v of variantes) { if (!(await cache.match(v))) { completo = false; break; } }
+    if (!completo) faltando.push(u);
   }
   if (!faltando.length) return;
+
   try {
     const raw = await _rpcCall('buscarImagensBase64', [JSON.stringify(faltando)], 60000, 4);
     const env = JSON.parse(raw);
@@ -249,7 +279,10 @@ async function _cachearImagensLote(urls) {
       if (!dataUrl) continue;
       try {
         const blob = _dataUrlParaBlob(dataUrl);
-        await cache.put(u, new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' } }));
+        const respHeaders = { 'Content-Type': blob.type || 'image/jpeg' };
+        for (const v of alvosPorOriginal[u]) {
+          await cache.put(v, new Response(blob, { headers: respHeaders }));
+        }
       } catch (e) { /* imagem com problema, pula */ }
     }
   } catch (e) { /* mesmo com as tentativas, não conseguiu — segue pro próximo lote */ }
@@ -353,7 +386,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (app) app.style.display = 'block';
       showToastSafe('Alguns dados podem estar desatualizados (sem internet)', 'error');
     }
-  }, 7000);
+  }, 18000);
 });
 
 // Depois que o app original terminar de carregar (window.onload), baixa as
