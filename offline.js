@@ -125,7 +125,7 @@ const _FUNCOES_ESCRITA = ['salvarPedido', 'atualizarPedido', 'salvarCliente', 'g
 
 async function _rpcCallOnce(fn, args, timeoutMs) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 15000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 30000);
   try {
     const resp = await fetch(API_URL + '?action=rpc', {
       method: 'POST',
@@ -477,13 +477,33 @@ async function sincronizacaoCompleta() {
   }
 }
 
+// navigator.onLine não é confiável em todos os sistemas (especialmente PC
+// com adaptadores de rede virtuais/VPN) — ele só verifica se alguma
+// interface está ativa, não se a internet realmente funciona. Por isso
+// testamos de verdade com uma requisição rápida ao Worker.
+async function _internetRealmenteDisponivel() {
+  if (!navigator.onLine) return false; // se nem isso, com certeza está offline
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 3500);
+    const resp = await fetch(API_URL, { method: 'OPTIONS', signal: controller.signal, cache: 'no-store' });
+    clearTimeout(t);
+    return resp.status < 500; // qualquer resposta do worker (mesmo 4xx) prova que há internet
+  } catch (e) {
+    return false;
+  }
+}
+
 function _atualizarIndicadorConexao() {
   const el = document.getElementById('offlineStatus');
   if (!el) return;
-  const online = navigator.onLine;
-  el.textContent = online ? '● Online' : '● Offline';
-  el.style.color = online ? 'var(--success)' : 'var(--danger)';
-  if (online) sincronizarFilaPedidos();
+  el.textContent = '● Verificando...';
+  el.style.color = 'var(--text3)';
+  _internetRealmenteDisponivel().then((online) => {
+    el.textContent = online ? '● Online' : '● Offline';
+    el.style.color = online ? 'var(--success)' : 'var(--danger)';
+    if (online) sincronizarFilaPedidos();
+  });
 }
 
 window.addEventListener('online', _atualizarIndicadorConexao);
@@ -495,17 +515,17 @@ window.addEventListener('offline', _atualizarIndicadorConexao);
 // app com chamadas de rede desnecessárias o tempo todo.
 setInterval(async () => {
   const el = document.getElementById('offlineStatus');
+  const online = await _internetRealmenteDisponivel();
   if (el) {
-    const online = navigator.onLine;
     el.textContent = online ? '● Online' : '● Offline';
     el.style.color = online ? 'var(--success)' : 'var(--danger)';
   }
-  if (!navigator.onLine) return;
+  if (!online) return;
   const filaPedidos = await _filaListar();
   const filaClientes = await _filaClientesListar();
   if (filaPedidos.length === 0 && filaClientes.length === 0) return;
   sincronizarFilaPedidos();
-}, 60000);
+}, 20000);
 
 window.addEventListener('DOMContentLoaded', () => {
   _atualizarIndicadorConexao();
