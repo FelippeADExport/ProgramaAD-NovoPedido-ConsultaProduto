@@ -2019,6 +2019,12 @@ function gerarPdfParaPedido(numero){
     const d=JSON.parse(r);
     if(!d.success){showToast('Erro: '+d.error,'error');return;}
     const{itens,cliente,extra}=d;
+    // getItensPedido não traz o campo "imagem" (só fica salvo no cadastro do
+    // produto) — completa aqui antes de gerar o PDF, senão sai sem fotos.
+    itens.forEach(it=>{
+      const p=PRODUCTS.find(x=>String(x.codigo)===String(it.codigo));
+      if(p)it.imagem=p.imagem||'';
+    });
     const valorTotal=itens.reduce((a,b)=>a+(b.valor_total||0),0);
     const pedido={
       numero,cliente,
