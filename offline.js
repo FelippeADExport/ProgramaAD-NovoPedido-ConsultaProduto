@@ -25,7 +25,7 @@ const CACHEABLE_READS = {
 // e fila de pedidos criados offline
 // ============================================================
 const DB_NAME = 'adexport_offline';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 function _openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -34,6 +34,7 @@ function _openDB() {
       if (!db.objectStoreNames.contains('respostas')) db.createObjectStore('respostas');
       if (!db.objectStoreNames.contains('fila_pedidos')) db.createObjectStore('fila_pedidos', { keyPath: 'id', autoIncrement: true });
       if (!db.objectStoreNames.contains('fila_clientes')) db.createObjectStore('fila_clientes', { keyPath: 'tempId' });
+      if (!db.objectStoreNames.contains('mapa_ids_temp')) db.createObjectStore('mapa_ids_temp');
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -110,6 +111,25 @@ async function _filaClienteRemover(tempId) {
     const tx = db.transaction('fila_clientes', 'readwrite');
     tx.objectStore('fila_clientes').delete(tempId);
     tx.oncomplete = () => res();
+  });
+}
+
+// ---- Mapa permanente tempId -> id real (sobrevive entre sincronizações) ----
+async function _salvarMapaIdTemp(tempId, idReal) {
+  const db = await getDB();
+  return new Promise((res) => {
+    const tx = db.transaction('mapa_ids_temp', 'readwrite');
+    tx.objectStore('mapa_ids_temp').put(idReal, tempId);
+    tx.oncomplete = () => res();
+  });
+}
+async function _pegarIdReal(tempId) {
+  const db = await getDB();
+  return new Promise((res) => {
+    const tx = db.transaction('mapa_ids_temp', 'readonly');
+    const r = tx.objectStore('mapa_ids_temp').get(tempId);
+    r.onsuccess = () => res(r.result || null);
+    r.onerror = () => res(null);
   });
 }
 
@@ -433,7 +453,7 @@ async function sincronizarFilaPedidos() {
 
   const filaClientes = await _filaClientesListar();
   console.log('[sync] clientes pendentes:', filaClientes.length);
-  const mapaIds = {}; // tempId -> id real
+  const mapaIds = {}; // tempId -> id real (memória, só desta rodada)
   for (const item of filaClientes) {
     try {
       const raw = await _rpcCall('salvarCliente', [JSON.stringify(item.cliente)], 20000);
@@ -441,6 +461,7 @@ async function sincronizarFilaPedidos() {
       console.log('[sync] cliente', item.tempId, '->', env);
       if (env.success) {
         mapaIds[item.tempId] = env.id;
+        await _salvarMapaIdTemp(item.tempId, env.id); // guarda permanente, sobrevive entre rodadas
         await _filaClienteRemover(item.tempId);
       }
     } catch (e) { console.error('[sync] falha ao enviar cliente', item.tempId, e); }
@@ -450,13 +471,16 @@ async function sincronizarFilaPedidos() {
   console.log('[sync] pedidos pendentes:', filaPedidos.length);
   for (const item of filaPedidos) {
     try {
-      if (item.pedido && item.pedido.cliente && mapaIds[item.pedido.cliente.id]) {
-        item.pedido.cliente.id = mapaIds[item.pedido.cliente.id];
-      }
-      // Se o pedido ainda depende de um cliente temporário não sincronizado, espera a próxima rodada
-      if (item.pedido && item.pedido.cliente && String(item.pedido.cliente.id || '').startsWith('TEMP')) {
-        console.log('[sync] pedido', item.id, 'ainda depende de cliente temporário, aguardando');
-        continue;
+      const tempIdCliente = item.pedido && item.pedido.cliente ? item.pedido.cliente.id : null;
+      if (tempIdCliente && String(tempIdCliente).startsWith('TEMP')) {
+        // primeiro tenta o mapa desta rodada, depois o mapa permanente (de rodadas anteriores)
+        const idReal = mapaIds[tempIdCliente] || await _pegarIdReal(tempIdCliente);
+        if (idReal) {
+          item.pedido.cliente.id = idReal;
+        } else {
+          console.log('[sync] pedido', item.id, 'ainda depende de cliente temporário, aguardando');
+          continue;
+        }
       }
       const raw = await _rpcCall('salvarPedido', [JSON.stringify(item.pedido)], 20000);
       console.log('[sync] pedido', item.id, '->', raw);
