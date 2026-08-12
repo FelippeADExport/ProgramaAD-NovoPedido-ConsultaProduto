@@ -1513,6 +1513,7 @@ function switchTab(t){
   const btnEl=document.getElementById('tab-'+t+'-btn');
   if(tabEl)tabEl.classList.add('active');
   if(btnEl)btnEl.classList.add('active');
+  if(t==='novo'){if(!editMode){resetFormNovoPedido();addItem();updateSummary();updateItemsBadge();updateOrderNum();}}
   if(t==='todos')loadPedidos();
   if(t==='consulta'){cnsInit();}
   if(t==='lista'){listaInit();}
