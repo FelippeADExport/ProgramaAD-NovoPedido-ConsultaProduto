@@ -2045,6 +2045,7 @@ function iniciarEdicao(numero){
   google.script.run.withSuccessHandler(r=>{
     const d=JSON.parse(r);if(!d.success){showToast('Erro: '+d.error,'error');return;}
     const{itens,cliente,extra}=d,pedResumo=PEDIDOS.find(p=>p.numero===numero)||{};
+    console.log('[editar] itens recebidos do servidor:',itens.length,itens.map(i=>i.codigo));
     resetFormNovoPedido();editMode=true;editNumeroOriginal=numero;editLinkPdfAntigo=pedResumo.link_pdf||'';
     document.getElementById('editBanner').classList.remove('hidden');
     document.getElementById('editBannerTitle').textContent='Editando: '+numero;
