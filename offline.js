@@ -475,11 +475,22 @@ window.addEventListener('online', _atualizarIndicadorConexao);
 window.addEventListener('offline', _atualizarIndicadorConexao);
 
 // O evento 'online' do iOS/Safari é conhecido por não disparar de forma
-// confiável. Por isso, além do evento, checamos periodicamente e tentamos
-// sincronizar de qualquer forma se navigator.onLine estiver true.
-setInterval(() => {
-  _atualizarIndicadorConexao();
-}, 20000);
+// confiável. Por isso, verificamos periodicamente — mas SÓ tentamos
+// sincronizar de fato se houver algo pendente, pra não sobrecarregar o
+// app com chamadas de rede desnecessárias o tempo todo.
+setInterval(async () => {
+  const el = document.getElementById('offlineStatus');
+  if (el) {
+    const online = navigator.onLine;
+    el.textContent = online ? '● Online' : '● Offline';
+    el.style.color = online ? 'var(--success)' : 'var(--danger)';
+  }
+  if (!navigator.onLine) return;
+  const filaPedidos = await _filaListar();
+  const filaClientes = await _filaClientesListar();
+  if (filaPedidos.length === 0 && filaClientes.length === 0) return;
+  sincronizarFilaPedidos();
+}, 60000);
 
 window.addEventListener('DOMContentLoaded', () => {
   _atualizarIndicadorConexao();
