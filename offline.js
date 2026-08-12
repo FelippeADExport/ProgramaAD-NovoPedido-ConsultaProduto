@@ -368,17 +368,37 @@ async function sincronizarTodasImagens(produtos, onProgress) {
 // ============================================================
 async function atualizarBadgeOffline() {
   const badge = document.getElementById('offlinePendingBadge');
+  const texto = document.getElementById('offlinePendingBadgeTexto');
   const filaPedidos = await _filaListar();
   const filaClientes = await _filaClientesListar();
   const total = filaPedidos.length + filaClientes.length;
   if (total > 0) {
-    badge.style.display = 'block';
+    badge.style.display = 'flex';
     const partes = [];
     if (filaPedidos.length) partes.push(filaPedidos.length + ' pedido(s)');
     if (filaClientes.length) partes.push(filaClientes.length + ' cliente(s)');
-    badge.textContent = partes.join(' e ') + ' aguardando envio';
+    texto.textContent = partes.join(' e ') + ' aguardando envio';
   } else {
     badge.style.display = 'none';
+  }
+}
+
+async function forcarSincronizacao() {
+  if (!navigator.onLine) {
+    showToastSafe('Sem internet no momento — conecte-se e tente de novo', 'error');
+    return;
+  }
+  const texto = document.getElementById('offlinePendingBadgeTexto');
+  const original = texto.textContent;
+  texto.textContent = 'Enviando...';
+  await sincronizarFilaPedidos();
+  const filaPedidos = await _filaListar();
+  const filaClientes = await _filaClientesListar();
+  if (filaPedidos.length === 0 && filaClientes.length === 0) {
+    showToastSafe('Tudo enviado com sucesso!', 'success');
+  } else {
+    showToastSafe('Ainda restou algo pendente — tente de novo em instantes', 'error');
+    texto.textContent = original;
   }
 }
 
@@ -386,32 +406,39 @@ async function atualizarBadgeOffline() {
 // definitivo), depois os pedidos — trocando também o ID do cliente dentro
 // de qualquer pedido pendente que tenha usado aquele cliente temporário.
 async function sincronizarFilaPedidos() {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine) { console.log('[sync] offline, abortando'); return; }
 
   const filaClientes = await _filaClientesListar();
+  console.log('[sync] clientes pendentes:', filaClientes.length);
   const mapaIds = {}; // tempId -> id real
   for (const item of filaClientes) {
     try {
       const raw = await _rpcCall('salvarCliente', [JSON.stringify(item.cliente)]);
       const env = JSON.parse(raw);
+      console.log('[sync] cliente', item.tempId, '->', env);
       if (env.success) {
         mapaIds[item.tempId] = env.id;
         await _filaClienteRemover(item.tempId);
       }
-    } catch (e) { /* tenta de novo na próxima vez */ }
+    } catch (e) { console.error('[sync] falha ao enviar cliente', item.tempId, e); }
   }
 
   const filaPedidos = await _filaListar();
+  console.log('[sync] pedidos pendentes:', filaPedidos.length);
   for (const item of filaPedidos) {
     try {
       if (item.pedido && item.pedido.cliente && mapaIds[item.pedido.cliente.id]) {
         item.pedido.cliente.id = mapaIds[item.pedido.cliente.id];
       }
       // Se o pedido ainda depende de um cliente temporário não sincronizado, espera a próxima rodada
-      if (item.pedido && item.pedido.cliente && String(item.pedido.cliente.id || '').startsWith('TEMP')) continue;
-      await _rpcCall('salvarPedido', [JSON.stringify(item.pedido)]);
+      if (item.pedido && item.pedido.cliente && String(item.pedido.cliente.id || '').startsWith('TEMP')) {
+        console.log('[sync] pedido', item.id, 'ainda depende de cliente temporário, aguardando');
+        continue;
+      }
+      const raw = await _rpcCall('salvarPedido', [JSON.stringify(item.pedido)]);
+      console.log('[sync] pedido', item.id, '->', raw);
       await _filaRemover(item.id);
-    } catch (e) { /* tenta de novo na próxima vez */ }
+    } catch (e) { console.error('[sync] falha ao enviar pedido', item.id, e); }
   }
   atualizarBadgeOffline();
 }
