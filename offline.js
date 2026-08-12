@@ -25,7 +25,7 @@ const CACHEABLE_READS = {
 // e fila de pedidos criados offline
 // ============================================================
 const DB_NAME = 'adexport_offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 function _openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -33,6 +33,7 @@ function _openDB() {
       const db = e.target.result;
       if (!db.objectStoreNames.contains('respostas')) db.createObjectStore('respostas');
       if (!db.objectStoreNames.contains('fila_pedidos')) db.createObjectStore('fila_pedidos', { keyPath: 'id', autoIncrement: true });
+      if (!db.objectStoreNames.contains('fila_clientes')) db.createObjectStore('fila_clientes', { keyPath: 'tempId' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -81,6 +82,33 @@ async function _filaRemover(id) {
   return new Promise((res) => {
     const tx = db.transaction('fila_pedidos', 'readwrite');
     tx.objectStore('fila_pedidos').delete(id);
+    tx.oncomplete = () => res();
+  });
+}
+
+// ---- Fila de clientes criados offline ----
+async function _filaClienteAdicionar(cliente, tempId) {
+  const db = await getDB();
+  return new Promise((res) => {
+    const tx = db.transaction('fila_clientes', 'readwrite');
+    tx.objectStore('fila_clientes').put({ tempId, cliente, criadoEm: new Date().toISOString() });
+    tx.oncomplete = () => res();
+  });
+}
+async function _filaClientesListar() {
+  const db = await getDB();
+  return new Promise((res) => {
+    const tx = db.transaction('fila_clientes', 'readonly');
+    const r = tx.objectStore('fila_clientes').getAll();
+    r.onsuccess = () => res(r.result || []);
+    r.onerror = () => res([]);
+  });
+}
+async function _filaClienteRemover(tempId) {
+  const db = await getDB();
+  return new Promise((res) => {
+    const tx = db.transaction('fila_clientes', 'readwrite');
+    tx.objectStore('fila_clientes').delete(tempId);
     tx.oncomplete = () => res();
   });
 }
@@ -153,6 +181,22 @@ async function _dispatch(fn, args, successCb, failureCb) {
       const numero = pedido.numero || ('PED-OFFLINE-' + Date.now());
       successCb && successCb(JSON.stringify({ success: true, numero, offline: true }));
       showToastSafe('Sem internet — pedido salvo no dispositivo. Será enviado quando a conexão voltar.', 'success');
+    } catch (e) {
+      failureCb && failureCb({ message: e.message });
+    }
+    return;
+  }
+
+  // Cliente novo criado offline: enfileira localmente com ID temporário,
+  // finge sucesso pra poder ser usado no pedido imediatamente.
+  if (fn === 'salvarCliente' && !navigator.onLine) {
+    try {
+      const cliente = JSON.parse(args[0]);
+      const tempId = 'TEMP' + Date.now();
+      await _filaClienteAdicionar(cliente, tempId);
+      atualizarBadgeOffline();
+      successCb && successCb(JSON.stringify({ success: true, id: tempId, offline: true }));
+      showToastSafe('Sem internet — cliente salvo no dispositivo. Será enviado quando a conexão voltar.', 'success');
     } catch (e) {
       failureCb && failureCb({ message: e.message });
     }
@@ -324,20 +368,47 @@ async function sincronizarTodasImagens(produtos, onProgress) {
 // ============================================================
 async function atualizarBadgeOffline() {
   const badge = document.getElementById('offlinePendingBadge');
-  const fila = await _filaListar();
-  if (fila.length > 0) {
+  const filaPedidos = await _filaListar();
+  const filaClientes = await _filaClientesListar();
+  const total = filaPedidos.length + filaClientes.length;
+  if (total > 0) {
     badge.style.display = 'block';
-    badge.textContent = fila.length + ' pedido(s) aguardando envio';
+    const partes = [];
+    if (filaPedidos.length) partes.push(filaPedidos.length + ' pedido(s)');
+    if (filaClientes.length) partes.push(filaClientes.length + ' cliente(s)');
+    badge.textContent = partes.join(' e ') + ' aguardando envio';
   } else {
     badge.style.display = 'none';
   }
 }
 
+// Sincroniza clientes pendentes primeiro (para trocar o ID temporário pelo
+// definitivo), depois os pedidos — trocando também o ID do cliente dentro
+// de qualquer pedido pendente que tenha usado aquele cliente temporário.
 async function sincronizarFilaPedidos() {
   if (!navigator.onLine) return;
-  const fila = await _filaListar();
-  for (const item of fila) {
+
+  const filaClientes = await _filaClientesListar();
+  const mapaIds = {}; // tempId -> id real
+  for (const item of filaClientes) {
     try {
+      const raw = await _rpcCall('salvarCliente', [JSON.stringify(item.cliente)]);
+      const env = JSON.parse(raw);
+      if (env.success) {
+        mapaIds[item.tempId] = env.id;
+        await _filaClienteRemover(item.tempId);
+      }
+    } catch (e) { /* tenta de novo na próxima vez */ }
+  }
+
+  const filaPedidos = await _filaListar();
+  for (const item of filaPedidos) {
+    try {
+      if (item.pedido && item.pedido.cliente && mapaIds[item.pedido.cliente.id]) {
+        item.pedido.cliente.id = mapaIds[item.pedido.cliente.id];
+      }
+      // Se o pedido ainda depende de um cliente temporário não sincronizado, espera a próxima rodada
+      if (item.pedido && item.pedido.cliente && String(item.pedido.cliente.id || '').startsWith('TEMP')) continue;
       await _rpcCall('salvarPedido', [JSON.stringify(item.pedido)]);
       await _filaRemover(item.id);
     } catch (e) { /* tenta de novo na próxima vez */ }
@@ -375,6 +446,14 @@ function _atualizarIndicadorConexao() {
 
 window.addEventListener('online', _atualizarIndicadorConexao);
 window.addEventListener('offline', _atualizarIndicadorConexao);
+
+// O evento 'online' do iOS/Safari é conhecido por não disparar de forma
+// confiável. Por isso, além do evento, checamos periodicamente e tentamos
+// sincronizar de qualquer forma se navigator.onLine estiver true.
+setInterval(() => {
+  _atualizarIndicadorConexao();
+}, 20000);
+
 window.addEventListener('DOMContentLoaded', () => {
   _atualizarIndicadorConexao();
   atualizarBadgeOffline();
