@@ -125,7 +125,7 @@ const _FUNCOES_ESCRITA = ['salvarPedido', 'atualizarPedido', 'salvarCliente', 'g
 
 async function _rpcCallOnce(fn, args, timeoutMs) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 30000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 12000);
   try {
     const resp = await fetch(API_URL + '?action=rpc', {
       method: 'POST',
@@ -185,7 +185,7 @@ async function _dispatch(fn, args, successCb, failureCb) {
   // se a tentativa real falhar.
   if (fn === 'salvarPedido') {
     try {
-      const raw = await _rpcCall(fn, args);
+      const raw = await _rpcCall(fn, args, 25000);
       successCb && successCb(raw);
     } catch (e) {
       try {
@@ -205,7 +205,7 @@ async function _dispatch(fn, args, successCb, failureCb) {
   // Cliente novo: mesma lógica — tenta de verdade, só guarda local se falhar.
   if (fn === 'salvarCliente') {
     try {
-      const raw = await _rpcCall(fn, args);
+      const raw = await _rpcCall(fn, args, 25000);
       successCb && successCb(raw);
     } catch (e) {
       try {
