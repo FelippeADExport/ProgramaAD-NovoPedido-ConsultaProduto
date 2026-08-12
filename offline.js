@@ -116,11 +116,12 @@ async function _filaClienteRemover(tempId) {
 // ============================================================
 // RPC — chama a mesma função do Codigo.gs via fetch (POST)
 // ============================================================
-// Ações que ESCREVEM dados (salvar/editar/excluir) NUNCA devem ser repetidas
-// automaticamente: se a resposta demorar a voltar mas o Google já tiver
-// processado a primeira tentativa, tentar de novo duplicaria o pedido/cliente.
-// Só é seguro repetir automaticamente ações de LEITURA.
-const _FUNCOES_ESCRITA = ['salvarPedido', 'atualizarPedido', 'excluirPedido', 'gerarPdfESalvar', 'salvarCliente', 'atualizarCliente', 'excluirCliente', 'salvarConfig', 'salvarCatalogoConfig'];
+// Ações que CRIAM um novo registro (pedido, revisão, cliente, arquivo PDF)
+// nunca devem ser repetidas automaticamente: se a resposta demorar mas o
+// Google já tiver processado a primeira tentativa, repetir DUPLICARIA o
+// registro. Excluir/editar/configurar são seguras de repetir (aplicar de
+// novo o mesmo resultado não duplica nada), por isso ficam de fora daqui.
+const _FUNCOES_ESCRITA = ['salvarPedido', 'atualizarPedido', 'salvarCliente', 'gerarPdfESalvar'];
 
 async function _rpcCallOnce(fn, args, timeoutMs) {
   const controller = new AbortController();
