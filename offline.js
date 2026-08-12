@@ -116,6 +116,12 @@ async function _filaClienteRemover(tempId) {
 // ============================================================
 // RPC — chama a mesma função do Codigo.gs via fetch (POST)
 // ============================================================
+// Ações que ESCREVEM dados (salvar/editar/excluir) NUNCA devem ser repetidas
+// automaticamente: se a resposta demorar a voltar mas o Google já tiver
+// processado a primeira tentativa, tentar de novo duplicaria o pedido/cliente.
+// Só é seguro repetir automaticamente ações de LEITURA.
+const _FUNCOES_ESCRITA = ['salvarPedido', 'atualizarPedido', 'excluirPedido', 'gerarPdfESalvar', 'salvarCliente', 'atualizarCliente', 'excluirCliente', 'salvarConfig', 'salvarCatalogoConfig'];
+
 async function _rpcCallOnce(fn, args, timeoutMs) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 15000);
@@ -143,7 +149,8 @@ async function _rpcCallOnce(fn, args, timeoutMs) {
 // é um erro real, insistir de novo quase sempre resolve. Por isso toda
 // chamada tenta algumas vezes antes de desistir.
 async function _rpcCall(fn, args, timeoutMs, tentativas) {
-  const maxTentativas = tentativas || 3;
+  const ehEscrita = _FUNCOES_ESCRITA.includes(fn);
+  const maxTentativas = ehEscrita ? 1 : (tentativas || 3);
   let ultimoErro;
   for (let i = 0; i < maxTentativas; i++) {
     try {
@@ -209,10 +216,9 @@ async function _dispatch(fn, args, successCb, failureCb) {
       const urls = JSON.parse(args[0]);
       const data = {};
       const faltando = [];
-      for (const u of urls) {
-        const b64 = await _imagemCacheParaBase64(u);
-        if (b64) data[u] = b64; else faltando.push(u);
-      }
+      // Busca no cache local em paralelo (bem mais rápido que um por um)
+      const resultados = await Promise.all(urls.map((u) => _imagemCacheParaBase64(u).then((b64) => ({ u, b64 }))));
+      resultados.forEach(({ u, b64 }) => { if (b64) data[u] = b64; else faltando.push(u); });
       console.log('[catálogo] imagens no cache local:', urls.length - faltando.length, '/ faltando buscar:', faltando.length);
       if (faltando.length && navigator.onLine) {
         const raw = await _rpcCall(fn, [JSON.stringify(faltando)], 60000, 4);

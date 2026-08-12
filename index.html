@@ -1949,7 +1949,7 @@ function renderPedidos(lista){
     const isRev=/\-R\d+$/.test(p.numero),pu=(p.link_pdf||'').trim();
     const pdfBtn=pu&&pu.startsWith('http')
       ?`<a href="${enc(pu)}" target="_blank" class="btn btn-sm btn-icon btn-secondary" title="Ver PDF">📄</a>`
-      :`<button class="btn btn-sm btn-icon btn-secondary" disabled style="opacity:.35;" title="PDF não gerado">📄</button>`;
+      :`<button class="btn btn-sm btn-icon btn-secondary" data-num="${enc(p.numero)}" onclick="gerarPdfParaPedido(this.dataset.num)" title="Gerar PDF">📄</button>`;
     const editBtn=`<button class="btn btn-sm btn-icon btn-warn" data-num="${enc(p.numero)}" onclick="iniciarEdicao(this.dataset.num)" title="Editar">✏️</button>`;
     const delBtn=`<button class="btn btn-sm btn-icon btn-danger del-btn" data-num="${enc(p.numero)}" data-nome="${enc(p.cliente_nome)}" data-pdf="${enc(pu)}" title="Excluir">🗑️</button>`;
     return{isRev,pdfBtn,editBtn,delBtn};
@@ -2012,6 +2012,34 @@ function resetBulkBar(){const bar=document.getElementById('bulkBar');bar.classLi
 // ═══════════════════════════════════════
 // EDIÇÃO DE PEDIDO
 // ═══════════════════════════════════════
+function gerarPdfParaPedido(numero){
+  showToast('Buscando dados do pedido...','');
+  google.script.run.withSuccessHandler(r=>{
+    const d=JSON.parse(r);
+    if(!d.success){showToast('Erro: '+d.error,'error');return;}
+    const{itens,cliente,extra}=d;
+    const valorTotal=itens.reduce((a,b)=>a+(b.valor_total||0),0);
+    const pedido={
+      numero,cliente,
+      tabela_preco:extra.tabela_preco||'FOB',
+      porto_destino:extra.porto_destino||'',
+      porto_destino_chegada:extra.porto_destino_chegada||'',
+      desconto_perc:extra.desconto_perc||0,
+      desconto_valor:extra.desconto_valor||0,
+      valor_total:valorTotal-(extra.desconto_valor||0),
+      observacoes:extra.observacoes||'',
+      itens,
+      opcoes:{exibir_preco:true,exibir_qtd:true,exibir_euro:itens.some(i=>i.europallet),idioma:'pt'}
+    };
+    showToast('Gerando PDF...','');
+    google.script.run.withSuccessHandler(r2=>{
+      const d2=JSON.parse(r2);
+      if(d2.success){showToast('✅ PDF gerado!','success');if(d2.url)window.open(d2.url,'_blank');loadPedidos();}
+      else showToast('Erro ao gerar PDF: '+d2.error,'error');
+    }).withFailureHandler(e=>showToast('Erro: '+e.message,'error')).gerarPdfESalvar(JSON.stringify(pedido));
+  }).withFailureHandler(e=>showToast('Erro: '+e.message,'error')).getItensPedido(numero);
+}
+
 function iniciarEdicao(numero){
   showToast('Carregando pedido...','');
   google.script.run.withSuccessHandler(r=>{
@@ -3359,7 +3387,7 @@ async function gerarCatalogoPdf(){
       const isCapa=url===capaUrl;
       if(isLogo)     imgs[url]=await _resizeImg(imgs[url],350,0.82);
       else if(isCapa)imgs[url]=await _resizeImg(imgs[url],900,0.82);
-      // demais (imagens de produto): manter JPEG original do Drive
+      else           imgs[url]=await _resizeImg(imgs[url],1000,0.82); // fotos de produto: comprime pra acelerar a geração
     }
   }
   if(_catFiles.catCapa)imgs['__cc__']=_catFiles.catCapa;
@@ -3413,7 +3441,7 @@ async function gerarCatalogoPdf(){
       doc.setDrawColor(190,190,190);doc.setLineWidth(0.3);doc.line(ml,y,W-mr,y);y+=3;
 
       // ── FOTOS ────────────────────────────────────
-      const availImgs=selFotos.map(n=>({n,img:getProdImg(it,n)})).filter(x=>!!x.img);
+      let availImgs=selFotos.map(n=>({n,img:getProdImg(it,n)})).filter(x=>!!x.img);
       const nF=availImgs.length;
       if(nF===0){y+=10;}
       else if(nF===1){
