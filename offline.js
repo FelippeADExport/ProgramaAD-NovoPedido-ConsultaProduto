@@ -180,33 +180,44 @@ function _makeRunner(successCb, failureCb) {
 }
 
 async function _dispatch(fn, args, successCb, failureCb) {
-  // Pedido criado offline: enfileira localmente e finge sucesso
-  if (fn === 'salvarPedido' && !navigator.onLine) {
+  // Pedido: tenta enviar de verdade primeiro (não confia em navigator.onLine,
+  // que pode mentir em alguns sistemas/apps instalados). Só guarda localmente
+  // se a tentativa real falhar.
+  if (fn === 'salvarPedido') {
     try {
-      const pedido = JSON.parse(args[0]);
-      await _filaAdicionar(pedido);
-      atualizarBadgeOffline();
-      const numero = pedido.numero || ('PED-OFFLINE-' + Date.now());
-      successCb && successCb(JSON.stringify({ success: true, numero, offline: true }));
-      showToastSafe('Sem internet — pedido salvo no dispositivo. Será enviado quando a conexão voltar.', 'success');
+      const raw = await _rpcCall(fn, args);
+      successCb && successCb(raw);
     } catch (e) {
-      failureCb && failureCb({ message: e.message });
+      try {
+        const pedido = JSON.parse(args[0]);
+        await _filaAdicionar(pedido);
+        atualizarBadgeOffline();
+        const numero = pedido.numero || ('PED-OFFLINE-' + Date.now());
+        successCb && successCb(JSON.stringify({ success: true, numero, offline: true }));
+        showToastSafe('Sem internet — pedido salvo no dispositivo. Será enviado quando a conexão voltar.', 'success');
+      } catch (e2) {
+        failureCb && failureCb({ message: e2.message });
+      }
     }
     return;
   }
 
-  // Cliente novo criado offline: enfileira localmente com ID temporário,
-  // finge sucesso pra poder ser usado no pedido imediatamente.
-  if (fn === 'salvarCliente' && !navigator.onLine) {
+  // Cliente novo: mesma lógica — tenta de verdade, só guarda local se falhar.
+  if (fn === 'salvarCliente') {
     try {
-      const cliente = JSON.parse(args[0]);
-      const tempId = 'TEMP' + Date.now();
-      await _filaClienteAdicionar(cliente, tempId);
-      atualizarBadgeOffline();
-      successCb && successCb(JSON.stringify({ success: true, id: tempId, offline: true }));
-      showToastSafe('Sem internet — cliente salvo no dispositivo. Será enviado quando a conexão voltar.', 'success');
+      const raw = await _rpcCall(fn, args);
+      successCb && successCb(raw);
     } catch (e) {
-      failureCb && failureCb({ message: e.message });
+      try {
+        const cliente = JSON.parse(args[0]);
+        const tempId = 'TEMP' + Date.now();
+        await _filaClienteAdicionar(cliente, tempId);
+        atualizarBadgeOffline();
+        successCb && successCb(JSON.stringify({ success: true, id: tempId, offline: true }));
+        showToastSafe('Sem internet — cliente salvo no dispositivo. Será enviado quando a conexão voltar.', 'success');
+      } catch (e2) {
+        failureCb && failureCb({ message: e2.message });
+      }
     }
     return;
   }
