@@ -118,7 +118,7 @@ async function _filaClienteRemover(tempId) {
 // ============================================================
 async function _rpcCallOnce(fn, args, timeoutMs) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 4000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 15000);
   try {
     const resp = await fetch(API_URL + '?action=rpc', {
       method: 'POST',
@@ -405,15 +405,20 @@ async function forcarSincronizacao() {
 // Sincroniza clientes pendentes primeiro (para trocar o ID temporário pelo
 // definitivo), depois os pedidos — trocando também o ID do cliente dentro
 // de qualquer pedido pendente que tenha usado aquele cliente temporário.
+let _sincronizando = false;
+
 async function sincronizarFilaPedidos() {
   if (!navigator.onLine) { console.log('[sync] offline, abortando'); return; }
+  if (_sincronizando) { console.log('[sync] já em andamento, ignorando chamada duplicada'); return; }
+  _sincronizando = true;
+  try {
 
   const filaClientes = await _filaClientesListar();
   console.log('[sync] clientes pendentes:', filaClientes.length);
   const mapaIds = {}; // tempId -> id real
   for (const item of filaClientes) {
     try {
-      const raw = await _rpcCall('salvarCliente', [JSON.stringify(item.cliente)]);
+      const raw = await _rpcCall('salvarCliente', [JSON.stringify(item.cliente)], 20000);
       const env = JSON.parse(raw);
       console.log('[sync] cliente', item.tempId, '->', env);
       if (env.success) {
@@ -435,12 +440,15 @@ async function sincronizarFilaPedidos() {
         console.log('[sync] pedido', item.id, 'ainda depende de cliente temporário, aguardando');
         continue;
       }
-      const raw = await _rpcCall('salvarPedido', [JSON.stringify(item.pedido)]);
+      const raw = await _rpcCall('salvarPedido', [JSON.stringify(item.pedido)], 20000);
       console.log('[sync] pedido', item.id, '->', raw);
       await _filaRemover(item.id);
     } catch (e) { console.error('[sync] falha ao enviar pedido', item.id, e); }
   }
   atualizarBadgeOffline();
+  } finally {
+    _sincronizando = false;
+  }
 }
 
 async function sincronizacaoCompleta() {
