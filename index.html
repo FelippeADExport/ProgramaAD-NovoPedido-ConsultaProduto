@@ -297,6 +297,7 @@ tr:has(.ped-cb:checked) td{background:rgba(232,197,71,0.06)!important}
         <button class="tab-btn active" id="tab-novo-btn" onclick="switchTab('novo')">✦ Novo Pedido</button>
         <button class="tab-btn" id="tab-todos-btn" onclick="switchTab('todos')">☰ Todos os Pedidos <span class="tab-count" id="tabTodosCount">—</span></button>
         <button class="tab-btn" id="tab-consulta-btn" onclick="switchTab('consulta')">🔍 Consulta Produto</button>
+        <button class="tab-btn" id="tab-lista-btn" onclick="switchTab('lista')">📋 Consulta Lista</button>
         <button class="tab-btn" id="tab-clientes-btn" onclick="switchTab('clientes')">👥 Consulta Cliente <span class="tab-count" id="tabClientesCount">—</span></button>
         <button class="tab-btn" id="tab-catalogo-btn" onclick="switchTab('catalogo')">📄 Catálogo PDF</button>
         <button class="tab-btn" id="tab-config-btn" onclick="switchTab('config')">⚙️ Configurações</button>
@@ -777,6 +778,46 @@ tr:has(.ped-cb:checked) td{background:rgba(232,197,71,0.06)!important}
         </div>
       </div>
 
+    </div>
+  </div>
+
+<!-- ABA: CONSULTA LISTA -->
+  <div class="tab-content" id="tab-lista">
+    <div class="main">
+      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:4px;">📋 Consulta Lista</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Selecione um formato para ver todos os códigos, referências e preços</div>
+
+      <div class="grid grid-2" style="margin-bottom:14px;">
+        <div>
+          <label>Formato</label>
+          <select id="lista-formato" onchange="listaRender()"><option value="">Selecione...</option></select>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:16px;padding-bottom:10px;">
+          <label style="display:flex;align-items:center;gap:6px;margin:0;text-transform:none;font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="lista-fob" checked onchange="listaRender()" style="width:auto;"> Preço FOB
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;text-transform:none;font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="lista-exw" checked onchange="listaRender()" style="width:auto;"> Preço EXW
+          </label>
+        </div>
+      </div>
+
+      <div id="lista-contagem" style="font-size:12px;color:var(--text3);margin-bottom:8px;"></div>
+
+      <div id="lista-table-wrap" class="pedidos-table-wrap hidden">
+        <table class="pedidos-table">
+          <thead><tr>
+            <th>Código</th><th>Referência</th>
+            <th id="lista-th-fob">FOB (US$/m²)</th>
+            <th id="lista-th-exw">EXW (US$/m²)</th>
+          </tr></thead>
+          <tbody id="lista-tbody"></tbody>
+        </table>
+      </div>
+
+      <div id="lista-empty" class="pedidos-table-wrap" style="border:none;">
+        <div class="pedidos-empty"><div class="big">📋</div><div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text2);">Selecione um formato</div><div style="margin-top:6px;color:var(--text3);">A lista de produtos aparece aqui</div></div>
+      </div>
     </div>
   </div>
 
@@ -1470,6 +1511,7 @@ function switchTab(t){
   if(btnEl)btnEl.classList.add('active');
   if(t==='todos')loadPedidos();
   if(t==='consulta'){cnsInit();}
+  if(t==='lista'){listaInit();}
   if(t==='clientes'){renderClientes();}
   if(t==='config'){carregarConfiguracoes();_syncAparenciaUI(_lerAparencia());carregarCfgCatalogo();}
   if(t==='catalogo'){catInit();}
@@ -2307,6 +2349,60 @@ function cnsFotoFallback(img){
     const ph=document.getElementById('cns-foto-placeholder');
     if(ph) ph.style.display='flex';
   }
+}
+
+function listaInit(){
+  const sel=document.getElementById('lista-formato');
+  if(!sel) return;
+  if(!PRODUCTS||!PRODUCTS.length){
+    sel.innerHTML='<option value="">Selecione...</option>';
+    return;
+  }
+  const formatos=[...new Set(PRODUCTS.map(p=>(p.formato||'').trim()).filter(Boolean))].sort();
+  const cur=sel.value;
+  sel.innerHTML='<option value="">Selecione...</option>'+formatos.map(f=>`<option value="${f}">${f}</option>`).join('');
+  if(cur) sel.value=cur;
+  listaRender();
+}
+
+function listaRender(){
+  const formato=document.getElementById('lista-formato').value;
+  const showFob=document.getElementById('lista-fob').checked;
+  const showExw=document.getElementById('lista-exw').checked;
+  document.getElementById('lista-th-fob').style.display=showFob?'':'none';
+  document.getElementById('lista-th-exw').style.display=showExw?'':'none';
+
+  const wrap=document.getElementById('lista-table-wrap');
+  const empty=document.getElementById('lista-empty');
+  const contagem=document.getElementById('lista-contagem');
+
+  if(!formato){
+    wrap.classList.add('hidden');
+    empty.classList.remove('hidden');
+    contagem.textContent='';
+    return;
+  }
+  const lista=(PRODUCTS||[]).filter(p=>(p.formato||'').trim()===formato.trim())
+    .sort((a,b)=>(a.referencia||a.nome||'').localeCompare(b.referencia||b.nome||''));
+
+  if(!lista.length){
+    wrap.classList.add('hidden');
+    empty.classList.remove('hidden');
+    contagem.textContent='';
+    return;
+  }
+
+  empty.classList.add('hidden');
+  wrap.classList.remove('hidden');
+  contagem.textContent=lista.length+' produto(s)';
+
+  document.getElementById('lista-tbody').innerHTML=lista.map(p=>`
+    <tr>
+      <td>${p.codigo||'—'}</td>
+      <td>${p.referencia||p.nome||'—'}</td>
+      <td style="${showFob?'':'display:none'}">${p.preco_fob?('US$ '+Number(p.preco_fob).toFixed(2)):'—'}</td>
+      <td style="${showExw?'':'display:none'}">${p.preco_exw?('US$ '+Number(p.preco_exw).toFixed(2)):'—'}</td>
+    </tr>`).join('');
 }
 
 function cnsInit(){
