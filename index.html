@@ -3424,8 +3424,8 @@ function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFo
         tot_cart=val(p.container_caixas_txt, p.container_caixas, 0);
         tot_gw=val(p.container_peso_txt, p.container_peso, 2,' kg');
       }
-      const camadasTxt=isExw?p.camadas_exw_txt:p.camadas_fob_txt;
-      const camadasNum=isExw?(p.camadas_exw||p.camadas_fob):p.camadas_fob;
+      const camadasTxt=isEuro?(isExw?p.camadas_euro_exw_txt:p.camadas_euro_fob_txt):(isExw?p.camadas_exw_txt:p.camadas_fob_txt);
+      const camadasNum=isEuro?(isExw?(p.camadas_euro_exw||p.camadas_euro_fob):p.camadas_euro_fob):(isExw?(p.camadas_exw||p.camadas_fob):p.camadas_fob);
       const camadas=val(camadasTxt,camadasNum,0);
 
       return[fmtStr,thickStr,cx_pecas,cx_sqmt,cx_peso,camadas,pal_cx,pal_sqmt,pal_peso,
