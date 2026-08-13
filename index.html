@@ -3278,7 +3278,7 @@ function _getLocalUsoDesc(lang,code){
 // ============================================================
 // PACKING – tabela 3 colunas + container
 // ============================================================
-function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFornImg,getLoAdImg,showFob,showExw){
+async function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFornImg,getLoAdImg,showFob,showExw){
   if(!items||!items.length)return;
   const T=CAT_T[mainLang]||CAT_T.pt;
 
@@ -3309,7 +3309,8 @@ function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFo
   });
 
   // ── Renderizar uma página por grupo ─────────────────────────
-  groups.forEach((grp,gi)=>{
+  for(const [gi,grp] of groups.entries()){
+    await new Promise(r=>setTimeout(r,0)); // libera o navegador entre páginas, evita travar a aba
     doc.addPage();
     let y=12;
 
@@ -3453,7 +3454,7 @@ function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFo
 
     const loAI=getLoAdImg();
     if(loAI)_addImgProp(doc,loAI,'PNG',W-mr-40,H-13,40,10,'right','pk_la'+gi);
-  }); // fim grupos
+  } // fim grupos
 }
 
 
@@ -3546,7 +3547,8 @@ async function gerarCatalogoPdf(){
     if(loAImg)_addImgProp(doc,loAImg,'PNG',W-mr-42,H-17,42,12,'right','logo_ad');
 
     // ── PÁGINAS DE PRODUTO ─────────────────────────
-    catSelecionados.forEach((it,prodIdx)=>{
+    for(const [prodIdx,it] of catSelecionados.entries()){
+      if(prodIdx%3===0)await new Promise(r=>setTimeout(r,0)); // libera o navegador a cada 3 produtos
       doc.addPage();
       const p=it.produto;
       let y=10;
@@ -3698,10 +3700,10 @@ async function gerarCatalogoPdf(){
 
       // ── PACKING APÓS CADA PRODUTO ─────────────────
       // packing agora vai ao final do catálogo
-    });
+    }
 
     // Packing ao final (uma vez para todos os produtos)
-    if(doPack)_drawPackingFinal(doc,catSelecionados,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFornImg,getLoAdImg,showFob,showExw);
+    if(doPack)await _drawPackingFinal(doc,catSelecionados,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFornImg,getLoAdImg,showFob,showExw);
 
     // Salvar e limpar memória
     // Gerar blob URL para botão "Abrir PDF"
