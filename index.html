@@ -319,6 +319,7 @@ tr:has(.ped-cb:checked) td{background:rgba(232,197,71,0.06)!important}
   <div id="offlinePendingBadge" style="display:none;background:var(--accent);color:#000;text-align:center;padding:6px 12px;font-size:13px;font-weight:700;display:none;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">
     <span id="offlinePendingBadgeTexto"></span>
     <button onclick="forcarSincronizacao()" style="background:#000;color:var(--accent);border:none;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;">↻ Enviar agora</button>
+    <button onclick="descartarPendencias()" style="background:none;color:#000;border:1px solid #000;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;">🗑 Descartar</button>
   </div>
 
   <!-- ABA: NOVO PEDIDO -->
@@ -3063,7 +3064,7 @@ function _getSecLangs(){return['pt','es','en'].filter(l=>l!==catMainLang&&_isOn(
 // ============================================================
 const CAT_T={
   pt:{superficie:'Superfície',cor:'Cor',junta:'Junta de assentamento',formato:'Formato',uso:'Indicação de uso',pecas:'Peças por caixa',versao:'Versão',vt:'Variação de tom',m2cx:'M² por Caixa',faces:'Faces',espessura:'Espessura',relevo:'Indicação de relevo',localUso:'Local de Uso',face_s:'face',faces_s:'faces',mate:'Mate',acetinado:'Acetinado',polido:'Polido',brilhante:'Brilhante',esmaltado:'Esmaltado',natural:'Natural',naturalAcetinado:'Natural Acetinado',rustico:'Rústico',antiderrapante:'Antiderrapante',marrom:'Marrom',branco:'Branco',cinza:'Cinza',bege:'Bege',preto:'Preto',pisoParede:'Piso | Parede',piso:'Piso',parede:'Parede',rt:'RT - Retificado',vt1:'VT1 - Uniforme',vt2:'VT2 - Pouca variação',vt3:'VT3 - Média variação',vt4:'VT4 - Alta variação',semRelevo:'Sem relevo',comRelevo:'Com relevo',
-    packTitle:'INFORMAÇÕES DE EMBALAGEM',pieceSz:'Tamanho da Peça',thick:'Espessura (mm)',m2box:'M²/Caixa',pcsbox:'Peças/Caixa',boxpal:'Caixas/Pallet',layers:'Lastro por Pallet',m2pal:'M²/Pallet',gwbox:'Peso Bruto (Kg)/Cx',nwbox:'Peso Líquido (Kg)/Cx',gwpal:'Peso Bruto (Kg)/Pallet',nwpal:'Peso Líquido (kg)/Pallet',
+    packTitle:'INFORMAÇÕES DE EMBALAGEM',pieceSz:'Tamanho da Peça',thick:'Espessura (mm)',m2box:'M²/Caixa',pcsbox:'Peças/Caixa',boxpal:'Caixas/Pallet',layers:'Camadas por Pallet',m2pal:'M²/Pallet',gwbox:'Peso Bruto (Kg)/Cx',nwbox:'Peso Líquido (Kg)/Cx',gwpal:'Peso Bruto (Kg)/Pallet',nwpal:'Peso Líquido (kg)/Pallet',
     contPallets:'Total Pallets (Container)',contSqmt:'Total M² (Container)',contCartons:'Total Caixas (Container)',contGw:'Total Peso Bruto (Container)',
     palAm:'Pallet Americano',palEu:'Europallet',priceLabel:'Preço',usdm2:'USD/m²',barcode:'Código de Barras',
     LB:'Ambientes residenciais sem acesso para a rua, como banheiros, salas, quartos e cozinhas.',LC:'Ambientes residenciais com e sem acesso para a rua, como banheiros, salas, quartos, cozinhas, garagens e varandas cobertas. Áreas comerciais de baixo tráfego.',LD:'Ambientes residenciais e comerciais com e sem acesso para a rua, como banheiros, salas, quartos, cozinhas, garagens e varandas.',LE:'Ambientes residenciais e comerciais com e sem acesso a rua, como banheiros, salas, quartos, cozinhas, garagens, varandas, áreas molhadas como calçadas e ambientes externos.'},
@@ -3215,13 +3216,27 @@ function _getLocalUsoDesc(lang,code){
 // ============================================================
 // PACKING – tabela 3 colunas + container
 // ============================================================
-function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFornImg,getLoAdImg){
+function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFornImg,getLoAdImg,showFob,showExw){
   if(!items||!items.length)return;
   const T=CAT_T[mainLang]||CAT_T.pt;
 
-  // ── Agrupar produtos por assinatura de packing ──────────────
+  // Colunas a exibir: combina tipo de preço (FOB/EXW) x tipo de pallet (Americano/Europallet)
+  const priceTypes=[];
+  if(showFob)priceTypes.push('FOB');
+  if(showExw)priceTypes.push('EXW');
+  if(!priceTypes.length)priceTypes.push('FOB'); // preço não exibido: usa FOB como padrão, mas ainda rotula
+  const palletTypes=[];
+  if(packAm)palletTypes.push('Americano');
+  if(packEu)palletTypes.push('Europallet');
+  const colunas=[];
+  priceTypes.forEach(pt=>palletTypes.forEach(plt=>colunas.push({priceType:pt,palletType:plt})));
+  if(!colunas.length)return;
+
+  // ── Agrupar produtos por assinatura de packing (considerando FOB e EXW) ──
   const _sig=p=>[p.cx_pecas,p.cx_sqmt,p.cx_peso,p.pallet_caixas,p.pallet_sqmt,p.pallet_peso,
-    p.euro_cx_pecas,p.euro_cx_sqmt,p.euro_cx_peso,p.euro_pallet_caixas,p.euro_pallet_sqmt,p.euro_pallet_peso].join('|');
+    p.euro_cx_pecas,p.euro_cx_sqmt,p.euro_cx_peso,p.euro_pallet_caixas,p.euro_pallet_sqmt,p.euro_pallet_peso,
+    p.exw_cx_pecas,p.exw_cx_sqmt,p.exw_cx_peso,p.exw_pallet_caixas,p.exw_pallet_sqmt,p.exw_pallet_peso,
+    p.camadas_fob,p.camadas_exw].join('|');
 
   const groups=[];
   items.forEach(it=>{
@@ -3244,19 +3259,16 @@ function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFo
     // Título
     doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(20,20,20);
     doc.text(T.packTitle||'INFORMAÇÕES DE EMBALAGEM',ml,y);
-    // Indicar grupo se houver mais de um
     if(groups.length>1){
       doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(110,110,110);
       doc.text('('+(gi+1)+'/'+groups.length+')',ml+90,y);
     }
     y+=8;
 
-    // "Informações válidas para os produtos:"
     const validLbl=mainLang==='en'?'Information valid for the products:':mainLang==='es'?'Información válida para los productos:':'Informações válidas para os produtos:';
     doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(60,60,60);
     doc.text(validLbl,ml,y);y+=5;
 
-    // Lista em 3 colunas, ordem por linha
     const N_COLS=3,PER_SET=27;
     const colW=cw/N_COLS;
     const rowH=4.5;
@@ -3281,49 +3293,60 @@ function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFo
     y+=6;
     doc.setDrawColor(200,200,200);doc.setLineWidth(0.2);doc.line(ml,y,W-mr,y);y+=5;
 
-    // Tabela de packing (dados do primeiro produto do grupo)
     const p=grp.items[0].produto;
-    const showAm=packAm,showEu=packEu;
-    const lblW=65,valW=(cw-lblW)/2;
+    const nCols=colunas.length;
+    const lblW=nCols>2?50:65;
+    const valW=(cw-lblW)/nCols;
+    const headerFs=nCols>2?6.5:8;
 
-    // Cabeçalhos de coluna
+    // Cabeçalhos de coluna (ex: "FOB - Pallet Americano")
     let hx=ml+lblW;
-    if(showAm){
+    colunas.forEach(col=>{
+      const rotulo=(col.priceType?col.priceType+' - ':'')+_ct(mainLang,col.palletType==='Americano'?'palAm':'palEu');
       doc.setFillColor(35,35,35);doc.roundedRect(hx,y-3,valW-1,8,2,2,'F');
-      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(255,255,255);
-      doc.text(_ct(mainLang,'palAm'),hx+(valW-1)/2,y+2.5,{align:'center'});hx+=valW;
-    }
-    if(showEu){
-      doc.setFillColor(35,35,35);doc.roundedRect(hx,y-3,valW-1,8,2,2,'F');
-      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(255,255,255);
-      doc.text(_ct(mainLang,'palEu'),hx+(valW-1)/2,y+2.5,{align:'center'});
-    }
+      doc.setFont('helvetica','bold');doc.setFontSize(headerFs);doc.setTextColor(255,255,255);
+      doc.text(rotulo,hx+(valW-1)/2,y+2.5,{align:'center'});
+      hx+=valW;
+    });
     y+=11;
 
-    const palData=(isEuro)=>{
+    const palData=(col)=>{
+      const isEuro=col.palletType==='Europallet';
+      const isExw=col.priceType==='EXW';
       const fmtInch=_formatoToInch(p.formato);
       const fmtStr=p.formato+(fmtInch?' | '+fmtInch:'');
       const thick=String(p.thickness||'').replace(',','.');
       const thickStr=thick&&!isNaN(parseFloat(thick))?(thick.includes('mm')?thick:thick+' mm'):'';
-      const cx_pecas=isEuro?(p.euro_cx_pecas||p.cx_pecas):p.cx_pecas;
-      const cx_sqmt=isEuro?(p.euro_cx_sqmt||p.cx_sqmt):p.cx_sqmt;
-      const cx_peso=isEuro?(p.euro_cx_peso||p.cx_peso):p.cx_peso;
-      const pal_cx=isEuro?(p.euro_pallet_caixas||p.pallet_caixas):p.pallet_caixas;
-      const pal_sqmt=isEuro?(p.euro_pallet_sqmt||p.pallet_sqmt):p.pallet_sqmt;
-      const pal_peso=isEuro?(p.euro_pallet_peso||p.pallet_peso):p.pallet_peso;
-      const tot_pal=isEuro?(p.euro_container_pallets||p.container_pallets):p.container_pallets;
-      const tot_sqmt=isEuro?(p.euro_container_sqmt||p.container_sqmt):p.container_sqmt;
-      const tot_cart=isEuro?(p.euro_container_caixas||p.container_caixas):p.container_caixas;
-      const tot_gw=isEuro?(p.euro_container_peso||p.container_peso):p.container_peso;
-      return[fmtStr,thickStr,_n(cx_sqmt,2,' m²'),_n(cx_pecas,0),_n(pal_cx,0),'1',_n(pal_sqmt,2,' m²'),
-        _n(cx_peso,2,' kg'),_n(cx_peso*0.988,2,' kg'),_n(pal_peso,2,' kg'),_n(pal_peso*0.988,2,' kg'),
+
+      let cx_pecas,cx_sqmt,cx_peso,pal_cx,pal_sqmt,pal_peso,tot_pal,tot_sqmt,tot_cart,tot_gw;
+      if(isEuro){
+        // Europallet tem um único conjunto de dados (não varia por FOB/EXW)
+        cx_pecas=p.euro_cx_pecas||p.cx_pecas; cx_sqmt=p.euro_cx_sqmt||p.cx_sqmt; cx_peso=p.euro_cx_peso||p.cx_peso;
+        pal_cx=p.euro_pallet_caixas||p.pallet_caixas; pal_sqmt=p.euro_pallet_sqmt||p.pallet_sqmt; pal_peso=p.euro_pallet_peso||p.pallet_peso;
+        tot_pal=p.euro_container_pallets||p.container_pallets; tot_sqmt=p.euro_container_sqmt||p.container_sqmt;
+        tot_cart=p.euro_container_caixas||p.container_caixas; tot_gw=p.euro_container_peso||p.container_peso;
+      }else if(isExw){
+        // Pallet Americano — versão EXW (colunas AR-BB)
+        cx_pecas=p.exw_cx_pecas||p.cx_pecas; cx_sqmt=p.exw_cx_sqmt||p.cx_sqmt; cx_peso=p.exw_cx_peso||p.cx_peso;
+        pal_cx=p.exw_pallet_caixas||p.pallet_caixas; pal_sqmt=p.exw_pallet_sqmt||p.pallet_sqmt; pal_peso=p.exw_pallet_peso||p.pallet_peso;
+        tot_pal=p.exw_total_pallets||p.container_pallets; tot_sqmt=p.exw_total_sqmt||p.container_sqmt;
+        tot_cart=p.exw_total_cartons||p.container_caixas; tot_gw=p.exw_total_gw||p.container_peso;
+      }else{
+        // Pallet Americano — versão FOB (padrão)
+        cx_pecas=p.cx_pecas; cx_sqmt=p.cx_sqmt; cx_peso=p.cx_peso;
+        pal_cx=p.pallet_caixas; pal_sqmt=p.pallet_sqmt; pal_peso=p.pallet_peso;
+        tot_pal=p.container_pallets; tot_sqmt=p.container_sqmt; tot_cart=p.container_caixas; tot_gw=p.container_peso;
+      }
+      const camadas=isExw?(p.camadas_exw||p.camadas_fob):p.camadas_fob;
+
+      return[fmtStr,thickStr,_n(cx_sqmt,2,' m²'),_n(cx_pecas,0),_n(pal_cx,0),_n(camadas,0),_n(pal_sqmt,2,' m²'),
+        _n(cx_peso,2,' kg'),_n(pal_peso,2,' kg'),
         _n(tot_pal,0),_n(tot_sqmt,2,' m²'),_n(tot_cart,0),_n(tot_gw,2,' kg')];
     };
 
     const rowLabels=[T.pieceSz,T.thick,T.m2box,T.pcsbox,T.boxpal,T.layers,T.m2pal,
-      T.gwbox,T.nwbox,T.gwpal,T.nwpal,T.contPallets,T.contSqmt,T.contCartons,T.contGw];
-    const amD=showAm?palData(false):null;
-    const euD=showEu?palData(true):null;
+      T.gwbox,T.gwpal,T.contPallets,T.contSqmt,T.contCartons,T.contGw];
+    const colData=colunas.map(col=>palData(col));
     const rowH2=6.8;
 
     rowLabels.forEach((lbl,ri)=>{
@@ -3333,8 +3356,11 @@ function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFo
       doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(80,80,80);
       doc.text(lbl||'',ml+2,ry);
       let vx=ml+lblW;
-      if(amD){doc.setFont('helvetica','bold');doc.setTextColor(20,20,20);doc.text(String(amD[ri]||''),vx+(valW-1)/2,ry,{align:'center'});vx+=valW;}
-      if(euD){doc.setFont('helvetica','bold');doc.setTextColor(20,20,20);doc.text(String(euD[ri]||''),vx+(valW-1)/2,ry,{align:'center'});}
+      colData.forEach(dados=>{
+        doc.setFont('helvetica','bold');doc.setFontSize(nCols>2?7:7.5);doc.setTextColor(20,20,20);
+        doc.text(String(dados[ri]||''),vx+(valW-1)/2,ry,{align:'center'});
+        vx+=valW;
+      });
     });
 
     const loAI=getLoAdImg();
@@ -3587,7 +3613,7 @@ async function gerarCatalogoPdf(){
     });
 
     // Packing ao final (uma vez para todos os produtos)
-    if(doPack)_drawPackingFinal(doc,catSelecionados,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFornImg,getLoAdImg);
+    if(doPack)_drawPackingFinal(doc,catSelecionados,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFornImg,getLoAdImg,showFob,showExw);
 
     // Salvar e limpar memória
     // Gerar blob URL para botão "Abrir PDF"
