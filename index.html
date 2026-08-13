@@ -1618,20 +1618,21 @@ function updateDescontoPreview(){const sub=getSubtotal();const{perc,valor}=getDe
 // ═══════════════════════════════════════════════════════════════
 // HELPER: retorna o conjunto de dados correto (padrão ou europallet)
 // ═══════════════════════════════════════════════════════════════
-function getProdData(prod, isEuro) {
+function getProdData(prod, isEuro, camada) {
+  const c2 = camada === 2;
   if (!isEuro) {
     return {
       preco_fob:         prod.preco_fob,
       preco_exw:         prod.preco_exw,
       cx_sqmt:           prod.cx_sqmt,
       cx_peso:           prod.cx_peso,
-      pallet_caixas:     prod.pallet_caixas,
-      pallet_sqmt:       prod.pallet_sqmt,
-      pallet_peso:       prod.pallet_peso,
-      container_sqmt:    prod.container_sqmt,
+      pallet_caixas:     c2 ? (prod.pallet_caixas_2||prod.pallet_caixas) : prod.pallet_caixas,
+      pallet_sqmt:       c2 ? (prod.pallet_sqmt_2||prod.pallet_sqmt) : prod.pallet_sqmt,
+      pallet_peso:       c2 ? (prod.pallet_peso_2||prod.pallet_peso) : prod.pallet_peso,
+      container_sqmt:    c2 ? (prod.container_sqmt_2||prod.container_sqmt) : prod.container_sqmt,
       container_peso:    prod.container_peso,
-      container_caixas:  prod.container_caixas,
-      container_pallets: prod.container_pallets,
+      container_caixas:  c2 ? (prod.container_caixas_2||prod.container_caixas) : prod.container_caixas,
+      container_pallets: c2 ? (prod.container_pallets_2||prod.container_pallets) : prod.container_pallets,
     };
   }
   // EUROPALLET: usa preço NORMAL + acréscimo configurável (aplicado em recalcItem)
@@ -1641,14 +1642,23 @@ function getProdData(prod, isEuro) {
     preco_exw:         prod.preco_exw,
     cx_sqmt:           prod.euro_cx_sqmt,
     cx_peso:           prod.euro_cx_peso,
-    pallet_caixas:     prod.euro_pallet_caixas,
-    pallet_sqmt:       prod.euro_pallet_sqmt,
-    pallet_peso:       prod.euro_pallet_peso,
-    container_sqmt:    prod.euro_container_sqmt,
+    pallet_caixas:     c2 ? (prod.euro_pallet_caixas_2||prod.euro_pallet_caixas) : prod.euro_pallet_caixas,
+    pallet_sqmt:       c2 ? (prod.euro_pallet_sqmt_2||prod.euro_pallet_sqmt) : prod.euro_pallet_sqmt,
+    pallet_peso:       c2 ? (prod.euro_pallet_peso_2||prod.euro_pallet_peso) : prod.euro_pallet_peso,
+    container_sqmt:    c2 ? (prod.euro_container_sqmt_2||prod.euro_container_sqmt) : prod.euro_container_sqmt,
     container_peso:    prod.euro_container_peso,
-    container_caixas:  prod.euro_container_caixas,
-    container_pallets: prod.euro_container_pallets,
+    container_caixas:  c2 ? (prod.euro_container_caixas_2||prod.euro_container_caixas) : prod.euro_container_caixas,
+    container_pallets: c2 ? (prod.euro_container_pallets_2||prod.euro_container_pallets) : prod.euro_container_pallets,
   };
+}
+
+// Um produto tem opção de 2 camadas quando o valor "_2" existir e for
+// diferente do valor padrão (1 camada) — senão a célula não tinha "/".
+function temOpcaoCamadas(prod, isEuro) {
+  if (!prod) return false;
+  const a = isEuro ? prod.euro_pallet_caixas : prod.pallet_caixas;
+  const b = isEuro ? prod.euro_pallet_caixas_2 : prod.pallet_caixas_2;
+  return !!(b && b !== a);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1708,6 +1718,15 @@ function renderItem(uid){
     <div class="euro-box" id="euro-box-${uid}">✓</div>
     <span class="europallet-label">EUROPALLET</span>
     <span class="europallet-badge" id="euro-badge-${uid}">pallet padrão</span>
+  </div>
+  <div class="grid grid-2 mt-12 hidden" id="camadas-row-${uid}">
+    <div style="grid-column:1/-1;">
+      <label>Camadas por pallet (este produto tem 2 configurações — escolha a usada no carregamento)</label>
+      <div class="price-toggle" style="display:flex;gap:8px;">
+        <button type="button" class="price-btn active" id="camada-btn-1-${uid}" onclick="setCamada('${uid}',1)">1 camada</button>
+        <button type="button" class="price-btn" id="camada-btn-2-${uid}" onclick="setCamada('${uid}',2)">2 camadas</button>
+      </div>
+    </div>
   </div>
   <div class="item-results" id="item-results-${uid}">
     <div class="result-box"><label id="r-sqmt-label-${uid}">Qtd Total (m²)</label><div class="val" id="r-sqmt-${uid}">—</div></div>
@@ -1812,16 +1831,34 @@ function resetPrice(uid){
   recalcItem(uid);updateSummary();
 }
 
+function setCamada(uid,valor){
+  setItem(uid,{camada:valor});
+  document.getElementById('camada-btn-1-'+uid)?.classList.toggle('active',valor===1);
+  document.getElementById('camada-btn-2-'+uid)?.classList.toggle('active',valor===2);
+  recalcItem(uid);updateSummary();
+}
+
+function atualizarVisibilidadeCamadas(uid){
+  const it=getItem(uid);if(!it||!it.produto)return;
+  const row=document.getElementById('camadas-row-'+uid);if(!row)return;
+  const isEuro=document.getElementById('euro-'+uid)?.checked||it.europallet||false;
+  const disponivel=temOpcaoCamadas(it.produto,isEuro);
+  row.classList.toggle('hidden',!disponivel);
+  if(!disponivel&&it.camada){setItem(uid,{camada:1});}
+}
+
 function recalcItem(uid){
   const item=getItem(uid);if(!item||!item.produto)return;
   const prod=item.produto;
   const und=document.getElementById('unidade-'+uid)?.value||item.unidade||'M2';
   const qtd=parseFloat(document.getElementById('qtd-'+uid)?.value)||0;
   const isEuro=document.getElementById('euro-'+uid)?.checked||item.europallet||false;
+  atualizarVisibilidadeCamadas(uid);
+  const camada=item.camada||1;
   const pi=document.getElementById('r-price-'+uid);
   const iB=(currentPorto==='Itapoá'&&itapoaAcrescimo)?CFG_ITAPOA:0;
   const euroB=isEuro?CFG_EUROPALLET:0;
-  const d=getProdData(prod,isEuro);
+  const d=getProdData(prod,isEuro,camada);
   const tbBase=(currentPrice==='FOB'?d.preco_fob:d.preco_exw)+euroB;
   if(pi){
     if(!pi._manuallyEdited){pi._basePrice=tbBase;pi.value=(tbBase+iB).toFixed(2);}
@@ -1869,7 +1906,7 @@ function updateSummary(){
 function buildPedidoObj(){
   const valid=items.filter(i=>i.produto);const{perc,valor:desc}=getDesconto();const sub=valid.reduce((a,b)=>a+(b.valorTotal||0),0);
   const n=new Date(),pad=x=>String(x).padStart(2,'0');
-  return{numero:document.getElementById('orderNumDisplay').textContent,cliente:{id:selectedClientId||'',nome:document.getElementById('cNome').value.trim(),rut:document.getElementById('cRut').value,endereco:document.getElementById('cEndereco').value,complemento:document.getElementById('cComplemento').value,provincia:document.getElementById('cProvincia').value,cidade:document.getElementById('cCidade').value,pais:document.getElementById('cPais').value,cep:document.getElementById('cCep').value,contato:document.getElementById('cContato').value,telefone:document.getElementById('cTelefone').value,email:document.getElementById('cEmail').value},tabela_preco:currentPrice,frete:currentFrete,porto_destino:currentFrete==='maritimo'?currentPorto:'Criciúma',porto_destino_chegada:currentPortoChegada,desconto_perc:perc,desconto_valor:desc,itens:valid.map((it,i)=>({item:i+1,linha:it.produto.linha||'',formato:it.produto.formato,nome:it.produto.nome,codigo:it.produto.codigo,imagem:it.produto.imagem||'',unidade:it.unidade,quantidade:it.quantidade,qtd_total:it.sqmt,total_caixas:it.caixas||0,total_pallets:it.pallets||0,preco_unitario:it.priceUnit,europallet:it.europallet,valor_total:it.valorTotal,peso_total:it.peso})),valor_total:sub-desc,observacoes:document.getElementById('observacoes').value,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||'America/Sao_Paulo',data_hora_local:pad(n.getDate())+'/'+pad(n.getMonth()+1)+'/'+n.getFullYear()+' '+pad(n.getHours())+':'+pad(n.getMinutes()),opcoes:{exibir_preco:document.getElementById('opt-preco').checked,exibir_qtd:document.getElementById('opt-qtd').checked,exibir_euro:valid.some(i=>i.europallet)&&document.getElementById('opt-euro').checked,idioma:document.querySelector('input[name="pdfLang"]:checked')?.value||'pt'}};
+  return{numero:document.getElementById('orderNumDisplay').textContent,cliente:{id:selectedClientId||'',nome:document.getElementById('cNome').value.trim(),rut:document.getElementById('cRut').value,endereco:document.getElementById('cEndereco').value,complemento:document.getElementById('cComplemento').value,provincia:document.getElementById('cProvincia').value,cidade:document.getElementById('cCidade').value,pais:document.getElementById('cPais').value,cep:document.getElementById('cCep').value,contato:document.getElementById('cContato').value,telefone:document.getElementById('cTelefone').value,email:document.getElementById('cEmail').value},tabela_preco:currentPrice,frete:currentFrete,porto_destino:currentFrete==='maritimo'?currentPorto:'Criciúma',porto_destino_chegada:currentPortoChegada,desconto_perc:perc,desconto_valor:desc,itens:valid.map((it,i)=>({item:i+1,linha:it.produto.linha||'',formato:it.produto.formato,nome:it.produto.nome,codigo:it.produto.codigo,imagem:it.produto.imagem||'',unidade:it.unidade,quantidade:it.quantidade,qtd_total:it.sqmt,total_caixas:it.caixas||0,total_pallets:it.pallets||0,preco_unitario:it.priceUnit,europallet:it.europallet,camadas:it.camada||1,valor_total:it.valorTotal,peso_total:it.peso})),valor_total:sub-desc,observacoes:document.getElementById('observacoes').value,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||'America/Sao_Paulo',data_hora_local:pad(n.getDate())+'/'+pad(n.getMonth()+1)+'/'+n.getFullYear()+' '+pad(n.getHours())+':'+pad(n.getMinutes()),opcoes:{exibir_preco:document.getElementById('opt-preco').checked,exibir_qtd:document.getElementById('opt-qtd').checked,exibir_euro:valid.some(i=>i.europallet)&&document.getElementById('opt-euro').checked,idioma:document.querySelector('input[name="pdfLang"]:checked')?.value||'pt'}};
 }
 
 // SALVAR
@@ -3318,30 +3355,53 @@ function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFo
       const thick=String(p.thickness||'').replace(',','.');
       const thickStr=thick&&!isNaN(parseFloat(thick))?(thick.includes('mm')?thick:thick+' mm'):'';
 
+      // usa o texto exato da planilha quando tiver "/" (ex: "28 / 56"),
+      // senão cai pro número formatado como antes
+      const val=(txt,numVal,dec,suf)=>{
+        if(txt&&/\//.test(txt))return txt.replace(/\s*\/\s*/g,' / '); // padroniza espaço em volta da barra
+        return _n(numVal,dec,suf);
+      };
+
       let cx_pecas,cx_sqmt,cx_peso,pal_cx,pal_sqmt,pal_peso,tot_pal,tot_sqmt,tot_cart,tot_gw;
       if(isEuro){
-        // Europallet tem um único conjunto de dados (não varia por FOB/EXW)
-        cx_pecas=p.euro_cx_pecas||p.cx_pecas; cx_sqmt=p.euro_cx_sqmt||p.cx_sqmt; cx_peso=p.euro_cx_peso||p.cx_peso;
-        pal_cx=p.euro_pallet_caixas||p.pallet_caixas; pal_sqmt=p.euro_pallet_sqmt||p.pallet_sqmt; pal_peso=p.euro_pallet_peso||p.pallet_peso;
-        tot_pal=p.euro_container_pallets||p.container_pallets; tot_sqmt=p.euro_container_sqmt||p.container_sqmt;
-        tot_cart=p.euro_container_caixas||p.container_caixas; tot_gw=p.euro_container_peso||p.container_peso;
+        cx_pecas=val(p.euro_cx_pecas_txt, p.euro_cx_pecas||p.cx_pecas, 0);
+        cx_sqmt=val(p.euro_cx_sqmt_txt, p.euro_cx_sqmt||p.cx_sqmt, 2,' m²');
+        cx_peso=val(p.euro_cx_peso_txt, p.euro_cx_peso||p.cx_peso, 2,' kg');
+        pal_cx=val(p.euro_pallet_caixas_txt, p.euro_pallet_caixas||p.pallet_caixas, 0);
+        pal_sqmt=val(p.euro_pallet_sqmt_txt, p.euro_pallet_sqmt||p.pallet_sqmt, 2,' m²');
+        pal_peso=val(p.euro_pallet_peso_txt, p.euro_pallet_peso||p.pallet_peso, 2,' kg');
+        tot_pal=val(p.euro_container_pallets_txt, p.euro_container_pallets||p.container_pallets, 0);
+        tot_sqmt=val(p.euro_container_sqmt_txt, p.euro_container_sqmt||p.container_sqmt, 2,' m²');
+        tot_cart=val(p.euro_container_caixas_txt, p.euro_container_caixas||p.container_caixas, 0);
+        tot_gw=val(p.euro_container_peso_txt, p.euro_container_peso||p.container_peso, 2,' kg');
       }else if(isExw){
-        // Pallet Americano — versão EXW (colunas AR-BB)
-        cx_pecas=p.exw_cx_pecas||p.cx_pecas; cx_sqmt=p.exw_cx_sqmt||p.cx_sqmt; cx_peso=p.exw_cx_peso||p.cx_peso;
-        pal_cx=p.exw_pallet_caixas||p.pallet_caixas; pal_sqmt=p.exw_pallet_sqmt||p.pallet_sqmt; pal_peso=p.exw_pallet_peso||p.pallet_peso;
-        tot_pal=p.exw_total_pallets||p.container_pallets; tot_sqmt=p.exw_total_sqmt||p.container_sqmt;
-        tot_cart=p.exw_total_cartons||p.container_caixas; tot_gw=p.exw_total_gw||p.container_peso;
+        cx_pecas=val(p.exw_cx_pecas_txt, p.exw_cx_pecas||p.cx_pecas, 0);
+        cx_sqmt=val(p.exw_cx_sqmt_txt, p.exw_cx_sqmt||p.cx_sqmt, 2,' m²');
+        cx_peso=val(p.exw_cx_peso_txt, p.exw_cx_peso||p.cx_peso, 2,' kg');
+        pal_cx=val(p.exw_pallet_caixas_txt, p.exw_pallet_caixas||p.pallet_caixas, 0);
+        pal_sqmt=val(p.exw_pallet_sqmt_txt, p.exw_pallet_sqmt||p.pallet_sqmt, 2,' m²');
+        pal_peso=val(p.exw_pallet_peso_txt, p.exw_pallet_peso||p.pallet_peso, 2,' kg');
+        tot_pal=val(p.exw_total_pallets_txt, p.exw_total_pallets||p.container_pallets, 0);
+        tot_sqmt=val(p.exw_total_sqmt_txt, p.exw_total_sqmt||p.container_sqmt, 2,' m²');
+        tot_cart=val(p.exw_total_cartons_txt, p.exw_total_cartons||p.container_caixas, 0);
+        tot_gw=val(p.exw_total_gw_txt, p.exw_total_gw||p.container_peso, 2,' kg');
       }else{
-        // Pallet Americano — versão FOB (padrão)
-        cx_pecas=p.cx_pecas; cx_sqmt=p.cx_sqmt; cx_peso=p.cx_peso;
-        pal_cx=p.pallet_caixas; pal_sqmt=p.pallet_sqmt; pal_peso=p.pallet_peso;
-        tot_pal=p.container_pallets; tot_sqmt=p.container_sqmt; tot_cart=p.container_caixas; tot_gw=p.container_peso;
+        cx_pecas=val(p.cx_pecas_txt, p.cx_pecas, 0);
+        cx_sqmt=val(p.cx_sqmt_txt, p.cx_sqmt, 2,' m²');
+        cx_peso=val(p.cx_peso_txt, p.cx_peso, 2,' kg');
+        pal_cx=val(p.pallet_caixas_txt, p.pallet_caixas, 0);
+        pal_sqmt=val(p.pallet_sqmt_txt, p.pallet_sqmt, 2,' m²');
+        pal_peso=val(p.pallet_peso_txt, p.pallet_peso, 2,' kg');
+        tot_pal=val(p.container_pallets_txt, p.container_pallets, 0);
+        tot_sqmt=val(p.container_sqmt_txt, p.container_sqmt, 2,' m²');
+        tot_cart=val(p.container_caixas_txt, p.container_caixas, 0);
+        tot_gw=val(p.container_peso_txt, p.container_peso, 2,' kg');
       }
       const camadas=isExw?(p.camadas_exw||p.camadas_fob):p.camadas_fob;
 
-      return[fmtStr,thickStr,_n(cx_sqmt,2,' m²'),_n(cx_pecas,0),_n(pal_cx,0),_n(camadas,0),_n(pal_sqmt,2,' m²'),
-        _n(cx_peso,2,' kg'),_n(pal_peso,2,' kg'),
-        _n(tot_pal,0),_n(tot_sqmt,2,' m²'),_n(tot_cart,0),_n(tot_gw,2,' kg')];
+      return[fmtStr,thickStr,cx_sqmt,cx_pecas,pal_cx,_n(camadas,0),pal_sqmt,
+        cx_peso,pal_peso,
+        tot_pal,tot_sqmt,tot_cart,tot_gw];
     };
 
     const rowLabels=[T.pieceSz,T.thick,T.m2box,T.pcsbox,T.boxpal,T.layers,T.m2pal,
