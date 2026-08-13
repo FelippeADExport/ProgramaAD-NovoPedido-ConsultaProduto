@@ -1661,6 +1661,25 @@ function temOpcaoCamadas(prod, isEuro) {
   return !!(b && b !== a);
 }
 
+// Container real: soma a configuração de 1 camada + 2 camadas (quando existir
+// a segunda). Se não existir, usa só o valor único normalmente.
+function getContainerTotais(prod, isEuro) {
+  if (!prod) return { sqmt: 0, caixas: 0, pallets: 0 };
+  const p = isEuro ? 'euro_' : '';
+  const sqmt1 = prod[p+'container_sqmt'] || 0;
+  const sqmt2 = prod[p+'container_sqmt_2'] || 0;
+  const cx1   = prod[p+'container_caixas'] || 0;
+  const cx2   = prod[p+'container_caixas_2'] || 0;
+  const pal1  = prod[p+'container_pallets'] || 0;
+  const pal2  = prod[p+'container_pallets_2'] || 0;
+  const temSegunda = temOpcaoCamadas(prod, isEuro);
+  return {
+    sqmt: temSegunda ? sqmt1+sqmt2 : sqmt1,
+    caixas: temSegunda ? cx1+cx2 : cx1,
+    pallets: temSegunda ? pal1+pal2 : pal1
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════
 // ITENS
 // CORREÇÃO BUG 2: removeItem agora re-indexa corretamente usando
@@ -1670,7 +1689,7 @@ function _uid(){return'uid'+Math.random().toString(36).slice(2,9);}
 
 function addItem(){
   const uid=_uid();
-  items.push({uid,produto:null,unidade:'M2',quantidade:1,europallet:false});
+  items.push({uid,produto:null,unidade:'PALLET',quantidade:1,europallet:false});
   renderItem(uid);
   updateItemsBadge();
 }
@@ -1710,7 +1729,7 @@ function renderItem(uid){
     <div><label>Código</label><div class="autocomplete-wrap"><input type="text" id="codigo-input-${uid}" placeholder="Digite o código..." autocomplete="off" oninput="onCodigoInput('${uid}')" onblur="hideCodigoDropdown('${uid}',300)"><div class="autocomplete-list hidden" id="codigo-dropdown-${uid}"></div></div></div>
   </div>
   <div class="grid grid-2 mt-12" style="gap:10px;">
-    <div><label>Unidade de Medida</label><select id="unidade-${uid}" onchange="onUnidadeChange('${uid}')"><option value="M2">m²</option><option value="CAIXA">Caixa</option><option value="PALLET">Pallets</option><option value="CONTAINER">Container</option></select></div>
+    <div><label>Unidade de Medida</label><select id="unidade-${uid}" onchange="onUnidadeChange('${uid}')"><option value="PALLET">Pallets</option><option value="CONTAINER">Container</option></select></div>
     <div><label>Quantidade</label><input type="number" id="qtd-${uid}" min="1" value="1" oninput="recalcItem('${uid}');updateSummary();"></div>
   </div>
   <div class="europallet-row" id="euro-row-${uid}" onclick="toggleEuropallet('${uid}')">
@@ -1842,7 +1861,8 @@ function atualizarVisibilidadeCamadas(uid){
   const it=getItem(uid);if(!it||!it.produto)return;
   const row=document.getElementById('camadas-row-'+uid);if(!row)return;
   const isEuro=document.getElementById('euro-'+uid)?.checked||it.europallet||false;
-  const disponivel=temOpcaoCamadas(it.produto,isEuro);
+  const und=document.getElementById('unidade-'+uid)?.value||it.unidade||'M2';
+  const disponivel=temOpcaoCamadas(it.produto,isEuro)&&und==='PALLET';
   row.classList.toggle('hidden',!disponivel);
   if(!disponivel&&it.camada){setItem(uid,{camada:1});}
 }
@@ -1869,7 +1889,12 @@ function recalcItem(uid){
   if(und==='M2'){sqmt=qtd;const cxM2=d.cx_sqmt||1;caixas=cxM2>0?qtd/cxM2:0;peso=caixas*(d.cx_peso||0);pallets=d.pallet_caixas&&d.pallet_caixas>0?caixas/d.pallet_caixas:0;containers=d.container_pallets&&d.container_pallets>0?pallets/d.container_pallets:0;}
   else if(und==='CAIXA'){caixas=qtd;sqmt=qtd*(d.cx_sqmt||0);peso=qtd*(d.cx_peso||0);pallets=d.pallet_caixas&&d.pallet_caixas>0?qtd/d.pallet_caixas:0;containers=d.container_pallets&&d.container_pallets>0?pallets/d.container_pallets:0;}
   else if(und==='PALLET'){sqmt=qtd*(d.pallet_sqmt||0);peso=qtd*(d.pallet_peso||0);caixas=qtd*(d.pallet_caixas||0);pallets=qtd;containers=d.container_pallets&&d.container_pallets>0?qtd/d.container_pallets:0;}
-  else if(und==='CONTAINER'){sqmt=qtd*(d.container_sqmt||0);peso=qtd*(d.container_peso||0);caixas=qtd*(d.container_caixas||0);pallets=qtd*(d.container_pallets||0);containers=qtd;}
+  else if(und==='CONTAINER'){
+    // Container: soma as duas configurações (1 e 2 camadas) quando existirem,
+    // já que um container real mistura as duas — não depende do seletor de camadas.
+    const ct=getContainerTotais(prod,isEuro);
+    sqmt=qtd*ct.sqmt;peso=qtd*(d.container_peso||0);caixas=qtd*ct.caixas;pallets=qtd*ct.pallets;containers=qtd;
+  }
   const vt=sqmt*pu;
   setItem(uid,{unidade:und,quantidade:qtd,europallet:isEuro,sqmt,peso,caixas,pallets,containers,priceUnit:pu,valorTotal:vt});
   const sqmtLabel=document.getElementById('r-sqmt-label-'+uid);if(sqmtLabel)sqmtLabel.textContent=und==='M2'?'Qtd Total (m²)':'Total m²';
@@ -3101,18 +3126,18 @@ function _getSecLangs(){return['pt','es','en'].filter(l=>l!==catMainLang&&_isOn(
 // ============================================================
 const CAT_T={
   pt:{superficie:'Superfície',cor:'Cor',junta:'Junta de assentamento',formato:'Formato',uso:'Indicação de uso',pecas:'Peças por caixa',versao:'Versão',vt:'Variação de tom',m2cx:'M² por Caixa',faces:'Faces',espessura:'Espessura',relevo:'Indicação de relevo',localUso:'Local de Uso',face_s:'face',faces_s:'faces',mate:'Mate',acetinado:'Acetinado',polido:'Polido',brilhante:'Brilhante',esmaltado:'Esmaltado',natural:'Natural',naturalAcetinado:'Natural Acetinado',rustico:'Rústico',antiderrapante:'Antiderrapante',marrom:'Marrom',branco:'Branco',cinza:'Cinza',bege:'Bege',preto:'Preto',pisoParede:'Piso | Parede',piso:'Piso',parede:'Parede',rt:'RT - Retificado',vt1:'VT1 - Uniforme',vt2:'VT2 - Pouca variação',vt3:'VT3 - Média variação',vt4:'VT4 - Alta variação',semRelevo:'Sem relevo',comRelevo:'Com relevo',
-    packTitle:'INFORMAÇÕES DE EMBALAGEM',pieceSz:'Tamanho da Peça',thick:'Espessura (mm)',m2box:'M²/Caixa',pcsbox:'Peças/Caixa',boxpal:'Caixas/Pallet',layers:'Camadas por Pallet',m2pal:'M²/Pallet',gwbox:'Peso Bruto (Kg)/Cx',nwbox:'Peso Líquido (Kg)/Cx',gwpal:'Peso Bruto (Kg)/Pallet',nwpal:'Peso Líquido (kg)/Pallet',
-    contPallets:'Total Pallets (Container)',contSqmt:'Total M² (Container)',contCartons:'Total Caixas (Container)',contGw:'Total Peso Bruto (Container)',
+    packTitle:'INFORMAÇÕES DE EMBALAGEM',pieceSz:'Tamanho da Peça',thick:'Espessura',pcsbox:'Peças/Caixa',m2box:'M²/Caixa',gwbox:'Peso Bruto Kg/Cx',layers:'Camadas por Pallet',boxpal:'Caixas/Pallet',m2pal:'M²/Pallet',gwpal:'Peso Bruto Kg/Pallet',
+    contCartons:'Total Caixas - Container',contPallets:'Total Pallets - Container',contSqmt:'Total M² - Container',contGw:'Total Peso Bruto - Container',
     palAm:'Pallet Americano',palEu:'Europallet',priceLabel:'Preço',usdm2:'USD/m²',barcode:'Código de Barras',
     LB:'Ambientes residenciais sem acesso para a rua, como banheiros, salas, quartos e cozinhas.',LC:'Ambientes residenciais com e sem acesso para a rua, como banheiros, salas, quartos, cozinhas, garagens e varandas cobertas. Áreas comerciais de baixo tráfego.',LD:'Ambientes residenciais e comerciais com e sem acesso para a rua, como banheiros, salas, quartos, cozinhas, garagens e varandas.',LE:'Ambientes residenciais e comerciais com e sem acesso a rua, como banheiros, salas, quartos, cozinhas, garagens, varandas, áreas molhadas como calçadas e ambientes externos.'},
   es:{superficie:'Superficie',cor:'Color',junta:'Junta de colocación',formato:'Formato',uso:'Indicación de uso',pecas:'Piezas por caja',versao:'Versión',vt:'Variación de tono',m2cx:'M² por Caja',faces:'Caras',espessura:'Espesor',relevo:'Indicación de relieve',localUso:'Lugar de Uso',face_s:'cara',faces_s:'caras',mate:'Mate',acetinado:'Satinado',polido:'Pulido',brilhante:'Brillante',esmaltado:'Esmaltado',natural:'Natural',naturalAcetinado:'Natural Satinado',rustico:'Rústico',antiderrapante:'Antideslizante',marrom:'Marrón',branco:'Blanco',cinza:'Gris',bege:'Beige',preto:'Negro',pisoParede:'Piso | Pared',piso:'Piso',parede:'Pared',rt:'RT - Rectificado',vt1:'VT1 - Uniforme',vt2:'VT2 - Poca variación',vt3:'VT3 - Variación media',vt4:'VT4 - Alta variación',semRelevo:'Sin relieve',comRelevo:'Con relieve',
-    packTitle:'INFORMACIÓN DE EMBALAJE',pieceSz:'Tamaño de Pieza',thick:'Espesor (mm)',m2box:'M²/Caja',pcsbox:'Piezas/Caja',boxpal:'Cajas/Pallet',layers:'Camadas por Pallet',m2pal:'M²/Pallet',gwbox:'Peso Bruto (Kg)/Cja',nwbox:'Peso Neto (Kg)/Cja',gwpal:'Peso Bruto (Kg)/Pallet',nwpal:'Peso Neto (kg)/Pallet',
-    contPallets:'Total Pallets (Contenedor)',contSqmt:'Total M² (Contenedor)',contCartons:'Total Cajas (Contenedor)',contGw:'Total Peso Bruto (Contenedor)',
+    packTitle:'INFORMACIÓN DE EMBALAJE',pieceSz:'Tamaño de Pieza',thick:'Espesor',pcsbox:'Piezas/Caja',m2box:'M²/Caja',gwbox:'Peso Bruto Kg/Caja',layers:'Capas por Pallet',boxpal:'Cajas/Pallet',m2pal:'M²/Pallet',gwpal:'Peso Bruto Kg/Pallet',
+    contCartons:'Total Cajas - Contenedor',contPallets:'Total Pallets - Contenedor',contSqmt:'Total M² - Contenedor',contGw:'Total Peso Bruto - Contenedor',
     palAm:'Pallet Americano',palEu:'Europallet',priceLabel:'Precio',usdm2:'USD/m²',barcode:'Código de Barras',
     LB:'Ambientes residenciales sin acceso a la calle, como baños, salas, habitaciones y cocinas.',LC:'Ambientes residenciales con y sin acceso a la calle, como baños, salas, habitaciones, cocinas, garajes y terrazas cubiertas. Áreas comerciales de bajo tráfico.',LD:'Ambientes residenciales y comerciales con y sin acceso a la calle, como baños, salas, habitaciones, cocinas, garajes y terrazas.',LE:'Ambientes residenciales y comerciales con y sin acceso a la calle, como baños, salas, habitaciones, cocinas, garajes, terrazas, áreas húmedas como aceras y ambientes externos.'},
   en:{superficie:'Surface',cor:'Color',junta:'Setting Joint',formato:'Format',uso:'Indication of Use',pecas:'Pieces per Box',versao:'Version',vt:'Tone Variation',m2cx:'M² per Box',faces:'Faces',espessura:'Thickness',relevo:'Relief Indication',localUso:'Place of Use',face_s:'face',faces_s:'faces',mate:'Matte',acetinado:'Satin',polido:'Polished',brilhante:'Glossy',esmaltado:'Glazed',natural:'Natural',naturalAcetinado:'Natural Satin',rustico:'Rustic',antiderrapante:'Anti-slip',marrom:'Brown',branco:'White',cinza:'Gray',bege:'Beige',preto:'Black',pisoParede:'Floor | Wall',piso:'Floor',parede:'Wall',rt:'RT - Rectified',vt1:'VT1 - Uniform',vt2:'VT2 - Low variation',vt3:'VT3 - Medium variation',vt4:'VT4 - High variation',semRelevo:'No relief',comRelevo:'With relief',
-    packTitle:'PACKING INFORMATION',pieceSz:'Piece Size',thick:'Thickness (mm)',m2box:'M²/Box',pcsbox:'Pcs/Box',boxpal:'Boxes/Pallet',layers:'Layers per Pallet',m2pal:'M²/Pallet',gwbox:'Gross Wt (Kg)/Box',nwbox:'Net Wt (Kg)/Box',gwpal:'Gross Wt (Kg)/Pallet',nwpal:'Net Wt (kg)/Pallet',
-    contPallets:'Total Pallets (Container)',contSqmt:'Total M² (Container)',contCartons:'Total Cartons (Container)',contGw:'Total Gross Wt (Container)',
+    packTitle:'PACKING INFORMATION',pieceSz:'Piece Size',thick:'Thickness',pcsbox:'Pcs/Box',m2box:'M²/Box',gwbox:'Gross Wt Kg/Box',layers:'Layers per Pallet',boxpal:'Boxes/Pallet',m2pal:'M²/Pallet',gwpal:'Gross Wt Kg/Pallet',
+    contCartons:'Total Boxes - Container',contPallets:'Total Pallets - Container',contSqmt:'Total M² - Container',contGw:'Total Gross Weight - Container',
     palAm:'American Pallet',palEu:'Europallet',priceLabel:'Price',usdm2:'USD/m²',barcode:'Barcode',
     LB:'Residential environments without street access, such as bathrooms, living rooms, bedrooms and kitchens.',LC:'Residential environments with and without street access, such as bathrooms, living rooms, bedrooms, kitchens, garages and covered verandas. Low-traffic commercial areas.',LD:'Residential and commercial environments with and without street access, such as bathrooms, living rooms, bedrooms, kitchens, garages and verandas.',LE:'Residential and commercial environments with and without street access, such as bathrooms, living rooms, bedrooms, kitchens, garages, verandas, wet areas like sidewalks and outdoor environments.'}
 };
@@ -3364,16 +3389,18 @@ function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFo
 
       let cx_pecas,cx_sqmt,cx_peso,pal_cx,pal_sqmt,pal_peso,tot_pal,tot_sqmt,tot_cart,tot_gw;
       if(isEuro){
-        cx_pecas=val(p.euro_cx_pecas_txt, p.euro_cx_pecas||p.cx_pecas, 0);
-        cx_sqmt=val(p.euro_cx_sqmt_txt, p.euro_cx_sqmt||p.cx_sqmt, 2,' m²');
-        cx_peso=val(p.euro_cx_peso_txt, p.euro_cx_peso||p.cx_peso, 2,' kg');
-        pal_cx=val(p.euro_pallet_caixas_txt, p.euro_pallet_caixas||p.pallet_caixas, 0);
-        pal_sqmt=val(p.euro_pallet_sqmt_txt, p.euro_pallet_sqmt||p.pallet_sqmt, 2,' m²');
-        pal_peso=val(p.euro_pallet_peso_txt, p.euro_pallet_peso||p.pallet_peso, 2,' kg');
-        tot_pal=val(p.euro_container_pallets_txt, p.euro_container_pallets||p.container_pallets, 0);
-        tot_sqmt=val(p.euro_container_sqmt_txt, p.euro_container_sqmt||p.container_sqmt, 2,' m²');
-        tot_cart=val(p.euro_container_caixas_txt, p.euro_container_caixas||p.container_caixas, 0);
-        tot_gw=val(p.euro_container_peso_txt, p.euro_container_peso||p.container_peso, 2,' kg');
+        // Europallet: só usa os dados PRÓPRIOS de europallet — se estiverem
+        // vazios na planilha, fica em branco (não copia do pallet normal).
+        cx_pecas=val(p.euro_cx_pecas_txt, p.euro_cx_pecas, 0);
+        cx_sqmt=val(p.euro_cx_sqmt_txt, p.euro_cx_sqmt, 2,' m²');
+        cx_peso=val(p.euro_cx_peso_txt, p.euro_cx_peso, 2,' kg');
+        pal_cx=val(p.euro_pallet_caixas_txt, p.euro_pallet_caixas, 0);
+        pal_sqmt=val(p.euro_pallet_sqmt_txt, p.euro_pallet_sqmt, 2,' m²');
+        pal_peso=val(p.euro_pallet_peso_txt, p.euro_pallet_peso, 2,' kg');
+        tot_pal=val(p.euro_container_pallets_txt, p.euro_container_pallets, 0);
+        tot_sqmt=val(p.euro_container_sqmt_txt, p.euro_container_sqmt, 2,' m²');
+        tot_cart=val(p.euro_container_caixas_txt, p.euro_container_caixas, 0);
+        tot_gw=val(p.euro_container_peso_txt, p.euro_container_peso, 2,' kg');
       }else if(isExw){
         cx_pecas=val(p.exw_cx_pecas_txt, p.exw_cx_pecas||p.cx_pecas, 0);
         cx_sqmt=val(p.exw_cx_sqmt_txt, p.exw_cx_sqmt||p.cx_sqmt, 2,' m²');
@@ -3397,15 +3424,16 @@ function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFo
         tot_cart=val(p.container_caixas_txt, p.container_caixas, 0);
         tot_gw=val(p.container_peso_txt, p.container_peso, 2,' kg');
       }
-      const camadas=isExw?(p.camadas_exw||p.camadas_fob):p.camadas_fob;
+      const camadasTxt=isExw?p.camadas_exw_txt:p.camadas_fob_txt;
+      const camadasNum=isExw?(p.camadas_exw||p.camadas_fob):p.camadas_fob;
+      const camadas=val(camadasTxt,camadasNum,0);
 
-      return[fmtStr,thickStr,cx_sqmt,cx_pecas,pal_cx,_n(camadas,0),pal_sqmt,
-        cx_peso,pal_peso,
-        tot_pal,tot_sqmt,tot_cart,tot_gw];
+      return[fmtStr,thickStr,cx_pecas,cx_sqmt,cx_peso,camadas,pal_cx,pal_sqmt,pal_peso,
+        tot_cart,tot_pal,tot_sqmt,tot_gw];
     };
 
-    const rowLabels=[T.pieceSz,T.thick,T.m2box,T.pcsbox,T.boxpal,T.layers,T.m2pal,
-      T.gwbox,T.gwpal,T.contPallets,T.contSqmt,T.contCartons,T.contGw];
+    const rowLabels=[T.pieceSz,T.thick,T.pcsbox,T.m2box,T.gwbox,T.layers,T.boxpal,T.m2pal,T.gwpal,
+      T.contCartons,T.contPallets,T.contSqmt,T.contGw];
     const colData=colunas.map(col=>palData(col));
     const rowH2=6.8;
 
