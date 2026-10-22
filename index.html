@@ -272,6 +272,25 @@ select option{background:var(--input-bg)}
 .bulk-count{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--accent);flex:1}
 .cb-wrap{width:44px;padding:0!important;text-align:center;vertical-align:middle!important}
 .cb-row{width:20px;height:20px;cursor:pointer;margin:0;accent-color:#e8c547;-webkit-appearance:checkbox;appearance:checkbox;}
+.cns-pack-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.cns-pack-tab{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:7px 16px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--text2);transition:all .2s}
+.cns-pack-tab:hover{color:var(--clr-body)}
+.cns-pack-tab.active.am{background:var(--accent);border-color:var(--accent);color:#000}
+.cns-pack-tab.active.eu{background:var(--accent2);border-color:var(--accent2);color:#000}
+.cns-pack-tab.active.exw{background:var(--warn);border-color:var(--warn);color:#000}
+.cns-pack-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:700px){.cns-pack-3{grid-template-columns:1fr}}
+.cns-pack-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px}
+.cns-pack-3.am .cns-pack-card{border-color:rgba(232,197,71,0.35)}
+.cns-pack-3.eu .cns-pack-card{border-color:rgba(78,205,196,0.35)}
+.cns-pack-3.exw .cns-pack-card{border-color:rgba(255,159,67,0.35)}
+.cns-pack-card h4{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--clr-body);margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px}
+.cns-pack-row{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}
+.cns-pack-row:last-child{margin-bottom:0}
+.cns-pack-row span:first-child{font-size:11px;color:var(--clr-body)}
+.cns-pack-row span:last-child{font-size:13px;font-weight:600;text-align:right}
+.cns-pack-row.med{flex-direction:column;gap:3px;border-top:1px dashed var(--border);padding-top:8px}
+.cns-pack-row.med span:last-child{text-align:left;white-space:pre-line}
 tr:has(.ped-cb:checked) td{background:rgba(232,197,71,0.06)!important}
 
 </style>
@@ -656,85 +675,12 @@ tr:has(.ped-cb:checked) td{background:rgba(232,197,71,0.06)!important}
         </div>
 
         <!-- Packing List -->
-        <div style="margin-top:20px;">
+        <div id="cns-pack-wrap" style="margin-top:20px;">
           <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
             📦 Informações de Packing List
           </div>
-
-          <!-- Pallet Americano -->
-          <div style="margin-bottom:16px;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-              <div style="background:rgba(232,197,71,0.15);border:1px solid rgba(232,197,71,0.4);border-radius:6px;padding:4px 12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--accent);">🏭 PALLET AMERICANO</div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-              <!-- Caixa -->
-              <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">
-                <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--clr-body);margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;">📦 Caixa</div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Peças</span><span id="cns-cx-pecas" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">m²</span><span id="cns-cx-sqmt" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Peso (kg)</span><span id="cns-cx-peso" style="font-size:13px;font-weight:600;">—</span></div>
-                </div>
-              </div>
-              <!-- Pallet -->
-              <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">
-                <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--clr-body);margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;">🪨 Pallet</div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Caixas</span><span id="cns-pal-caixas" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">m²</span><span id="cns-pal-sqmt" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Peso (kg)</span><span id="cns-pal-peso" style="font-size:13px;font-weight:600;">—</span></div>
-                </div>
-              </div>
-              <!-- Container -->
-              <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">
-                <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--clr-body);margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;">🚢 Container</div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Caixas</span><span id="cns-con-caixas" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Pallets</span><span id="cns-con-pallets" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">m²</span><span id="cns-con-sqmt" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Peso (kg)</span><span id="cns-con-peso" style="font-size:13px;font-weight:600;">—</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Euro Pallet -->
-          <div id="cns-euro-section">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-              <div style="background:rgba(78,205,196,0.12);border:1px solid rgba(78,205,196,0.4);border-radius:6px;padding:4px 12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--accent2);">🌍 EURO PALLET</div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-              <!-- Caixa Euro -->
-              <div style="background:var(--surface);border:1px solid rgba(78,205,196,0.25);border-radius:10px;padding:14px;">
-                <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--clr-body);margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;">📦 Caixa</div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Peças</span><span id="cns-euro-cx-pecas" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">m²</span><span id="cns-euro-cx-sqmt" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Peso (kg)</span><span id="cns-euro-cx-peso" style="font-size:13px;font-weight:600;">—</span></div>
-                </div>
-              </div>
-              <!-- Pallet Euro -->
-              <div style="background:var(--surface);border:1px solid rgba(78,205,196,0.25);border-radius:10px;padding:14px;">
-                <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--clr-body);margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;">🪨 Pallet</div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Caixas</span><span id="cns-euro-pal-caixas" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">m²</span><span id="cns-euro-pal-sqmt" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Peso (kg)</span><span id="cns-euro-pal-peso" style="font-size:13px;font-weight:600;">—</span></div>
-                </div>
-              </div>
-              <!-- Container Euro -->
-              <div style="background:var(--surface);border:1px solid rgba(78,205,196,0.25);border-radius:10px;padding:14px;">
-                <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--clr-body);margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;">🚢 Container</div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Caixas</span><span id="cns-euro-con-caixas" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Pallets</span><span id="cns-euro-con-pallets" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">m²</span><span id="cns-euro-con-sqmt" style="font-size:13px;font-weight:600;">—</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:var(--clr-body);">Peso (kg)</span><span id="cns-euro-con-peso" style="font-size:13px;font-weight:600;">—</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
+          <div class="cns-pack-tabs" id="cns-pack-tabs"></div>
+          <div class="cns-pack-3" id="cns-pack-box"></div>
         </div>
       </div>
 
@@ -2662,38 +2608,87 @@ function cnsShowProduto(p){
   document.getElementById('cns-r-fob').textContent=fmtPrice(p.preco_fob);
   document.getElementById('cns-r-exw').textContent=fmtPrice(p.preco_exw);
 
-  // Pallet Americano — Caixa
-  document.getElementById('cns-cx-pecas').textContent=cnsVal(p.cx_pecas);
-  document.getElementById('cns-cx-sqmt').textContent=p.cx_sqmt?cnsFmt(p.cx_sqmt)+' m²':'—';
-  document.getElementById('cns-cx-peso').textContent=p.cx_peso?cnsFmt(p.cx_peso)+' kg':'—';
-
-  // Pallet Americano — Pallet
-  document.getElementById('cns-pal-caixas').textContent=p.pallet_caixas?cnsFmtInt(p.pallet_caixas):'—';
-  document.getElementById('cns-pal-sqmt').textContent=p.pallet_sqmt?cnsFmt(p.pallet_sqmt)+' m²':'—';
-  document.getElementById('cns-pal-peso').textContent=p.pallet_peso?cnsFmt(p.pallet_peso)+' kg':'—';
-
-  // Pallet Americano — Container
-  document.getElementById('cns-con-pallets').textContent=p.container_pallets?cnsFmtInt(p.container_pallets):'—';
-  document.getElementById('cns-con-sqmt').textContent=p.container_sqmt?cnsFmt(p.container_sqmt)+' m²':'—';
-  document.getElementById('cns-con-caixas').textContent=p.container_caixas?cnsFmtInt(p.container_caixas):'—';
-  document.getElementById('cns-con-peso').textContent=p.container_peso?cnsFmt(p.container_peso)+' kg':'—';
-
-  // Euro Pallet — verificar se tem dados
-  const temEuro=(p.euro_preco_fob||p.euro_cx_sqmt||p.euro_pallet_caixas||p.euro_container_pallets);
-  const euroSec=document.getElementById('cns-euro-section');
-  euroSec.style.opacity=temEuro?'1':'0.4';
-
-  document.getElementById('cns-euro-cx-pecas').textContent=p.euro_cx_pecas?cnsFmtInt(p.euro_cx_pecas):'—';
-  document.getElementById('cns-euro-cx-sqmt').textContent=p.euro_cx_sqmt?cnsFmt(p.euro_cx_sqmt)+' m²':'—';
-  document.getElementById('cns-euro-cx-peso').textContent=p.euro_cx_peso?cnsFmt(p.euro_cx_peso)+' kg':'—';
-  document.getElementById('cns-euro-pal-caixas').textContent=p.euro_pallet_caixas?cnsFmtInt(p.euro_pallet_caixas):'—';
-  document.getElementById('cns-euro-pal-sqmt').textContent=p.euro_pallet_sqmt?cnsFmt(p.euro_pallet_sqmt)+' m²':'—';
-  document.getElementById('cns-euro-pal-peso').textContent=p.euro_pallet_peso?cnsFmt(p.euro_pallet_peso)+' kg':'—';
-  document.getElementById('cns-euro-con-pallets').textContent=p.euro_container_pallets?cnsFmtInt(p.euro_container_pallets):'—';
-  document.getElementById('cns-euro-con-sqmt').textContent=p.euro_container_sqmt?cnsFmt(p.euro_container_sqmt)+' m²':'—';
-  document.getElementById('cns-euro-con-caixas').textContent=p.euro_container_caixas?cnsFmtInt(p.euro_container_caixas):'—';
-  document.getElementById('cns-euro-con-peso').textContent=p.euro_container_peso?cnsFmt(p.euro_container_peso)+' kg':'—';
+  // Packing (Americano / Europallet / EXW)
+  cnsRenderPack(p);
 }
+
+// ============================================================
+// PACKING — aceita valores duplos "28 / 56" e formata cada parte
+// ============================================================
+function cnsNumParse(s){
+  s=String(s).trim();
+  if(s.indexOf(',')>=0) s=s.replace(/\./g,'').replace(',','.');
+  if(!/^-?\d+(\.\d+)?$/.test(s)) return null;
+  return parseFloat(s);
+}
+// dec=true → 2 casas decimais; dec=false → inteiro
+function cnsFmtMulti(raw,dec,unit){
+  const s=String(raw==null?'':raw).trim();
+  if(!s||s==='0') return '—';
+  const opt=dec?{minimumFractionDigits:2,maximumFractionDigits:2}:{maximumFractionDigits:0};
+  const out=s.split('/').map(x=>x.trim()).filter(Boolean).map(x=>{
+    const v=cnsNumParse(x);
+    return v===null?x:v.toLocaleString('pt-BR',opt);
+  }).join(' / ');
+  return out+(unit?' '+unit:'');
+}
+function cnsTemValor(v){const s=String(v==null?'':v).trim();return !!s&&s!=='0';}
+function cnsEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+const CNS_PACK_TABS=[{k:'am',lbl:'Pallet Americano',ic:'🏭'},{k:'eu',lbl:'Europallet',ic:'🌍'},{k:'exw',lbl:'EXW',ic:'🚚'}];
+let CNS_PACK_TAB='am', CNS_PACK_PROD=null;
+
+// Monta os 3 blocos de packing a partir dos campos de texto do getProdutos
+function cnsGetPack(p){
+  return {
+    am:{cx_pecas:p.cx_pecas_txt,cx_sqmt:p.cx_sqmt_txt,cx_peso:p.cx_peso_txt,
+        pal_caixas:p.pallet_caixas_txt,pal_sqmt:p.pallet_sqmt_txt,pal_peso:p.pallet_peso_txt,
+        con_pallets:p.container_pallets_txt,con_sqmt:p.container_sqmt_txt,con_caixas:p.container_caixas_txt,con_peso:p.container_peso_txt,
+        medidas:p.pallet_size,camadas:[{l:'',v:p.camadas_fob_txt}]},
+    eu:{cx_pecas:p.euro_cx_pecas_txt,cx_sqmt:p.euro_cx_sqmt_txt,cx_peso:p.euro_cx_peso_txt,
+        pal_caixas:p.euro_pallet_caixas_txt,pal_sqmt:p.euro_pallet_sqmt_txt,pal_peso:p.euro_pallet_peso_txt,
+        con_pallets:p.euro_container_pallets_txt,con_sqmt:p.euro_container_sqmt_txt,con_caixas:p.euro_container_caixas_txt,con_peso:p.euro_container_peso_txt,
+        medidas:p.euro_pallet_size,camadas:[{l:'',v:p.camadas_euro_fob_txt}]},
+    exw:{cx_pecas:p.exw_cx_pecas_txt,cx_sqmt:p.exw_cx_sqmt_txt,cx_peso:p.exw_cx_peso_txt,
+        pal_caixas:p.exw_pallet_caixas_txt,pal_sqmt:p.exw_pallet_sqmt_txt,pal_peso:p.exw_pallet_peso_txt,
+        con_pallets:p.exw_total_pallets_txt,con_sqmt:p.exw_total_sqmt_txt,con_caixas:p.exw_total_cartons_txt,con_peso:p.exw_total_gw_txt,
+        medidas:p.exw_pallet_size,camadas:[{l:'Pallet Americano',v:p.camadas_exw_txt},{l:'Europallet',v:p.camadas_euro_exw_txt}]}
+  };
+}
+function cnsHasPack(d){
+  return !!d&&['cx_pecas','cx_sqmt','pal_caixas','con_pallets','medidas'].some(k=>cnsTemValor(d[k]));
+}
+function cnsPackHtml(d,tab){
+  const row=(l,v,cls)=>'<div class="cns-pack-row'+(cls?' '+cls:'')+'"><span>'+cnsEsc(l)+'</span><span>'+cnsEsc(v)+'</span></div>';
+  const cam=(d.camadas||[]).filter(c=>cnsTemValor(c.v))
+    .map(c=>row(c.l?'Camadas ('+c.l+')':'Camadas',cnsFmtMulti(c.v,false))).join('');
+  const med=String(d.medidas||'').trim();
+  const medHtml=med?row('Medidas do pallet',med.split('/').map(x=>x.trim()).filter(Boolean).join('\n'),'med'):'';
+  const tit3=tab==='exw'?'🚚 Caminhão':'🚢 Container';
+  return ''+
+  '<div class="cns-pack-card"><h4>📦 Caixa</h4>'+
+    row('Peças',cnsFmtMulti(d.cx_pecas,false))+row('m²',cnsFmtMulti(d.cx_sqmt,true,'m²'))+row('Peso (kg)',cnsFmtMulti(d.cx_peso,true,'kg'))+'</div>'+
+  '<div class="cns-pack-card"><h4>🪨 Pallet</h4>'+
+    row('Caixas',cnsFmtMulti(d.pal_caixas,false))+row('m²',cnsFmtMulti(d.pal_sqmt,true,'m²'))+row('Peso (kg)',cnsFmtMulti(d.pal_peso,true,'kg'))+
+    cam+medHtml+'</div>'+
+  '<div class="cns-pack-card"><h4>'+tit3+'</h4>'+
+    row('Caixas',cnsFmtMulti(d.con_caixas,false))+row('Pallets',cnsFmtMulti(d.con_pallets,false))+row('m²',cnsFmtMulti(d.con_sqmt,true,'m²'))+row('Peso (kg)',cnsFmtMulti(d.con_peso,true,'kg'))+'</div>';
+}
+function cnsRenderPack(p){
+  CNS_PACK_PROD=p;
+  const pack=cnsGetPack(p);
+  const avail=CNS_PACK_TABS.filter(x=>cnsHasPack(pack[x.k]));
+  const wrap=document.getElementById('cns-pack-wrap');
+  wrap.classList.toggle('hidden',!avail.length);
+  if(!avail.length) return;
+  if(!avail.some(x=>x.k===CNS_PACK_TAB)) CNS_PACK_TAB=avail[0].k;
+  document.getElementById('cns-pack-tabs').innerHTML=avail.map(x=>
+    '<button class="cns-pack-tab '+x.k+(x.k===CNS_PACK_TAB?' active':'')+'" onclick="cnsSetPackTab(\''+x.k+'\')">'+x.ic+' '+x.lbl+'</button>').join('');
+  const box=document.getElementById('cns-pack-box');
+  box.className='cns-pack-3 '+CNS_PACK_TAB;
+  box.innerHTML=cnsPackHtml(pack[CNS_PACK_TAB],CNS_PACK_TAB);
+}
+function cnsSetPackTab(k){CNS_PACK_TAB=k;if(CNS_PACK_PROD) cnsRenderPack(CNS_PACK_PROD);}
 
 function cnsSetFotoByIdx(idx){
   const url=_cnsAllFotos[idx];
