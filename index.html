@@ -3248,6 +3248,7 @@ function catRenderSelecionados(){
         ${sf?`<label style="display:flex;align-items:center;gap:4px;font-size:12px;">FOB <input type="number" step="0.01" value="${it.fob_edit}" onchange="catSelecionados[${i}].fob_edit=parseFloat(this.value)||0" style="width:70px;padding:3px 6px;font-size:12px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;color:var(--text);"></label>`:''}
         ${se?`<label style="display:flex;align-items:center;gap:4px;font-size:12px;">EXW <input type="number" step="0.01" value="${it.exw_edit}" onchange="catSelecionados[${i}].exw_edit=parseFloat(this.value)||0" style="width:70px;padding:3px 6px;font-size:12px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;color:var(--text);"></label>`:''}
       </div>`:''}
+      <input type="text" maxlength="100" placeholder="Comentário no PDF (ex.: Estoque: 500 m²)" value="${String(it.comentario||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}" oninput="catSelecionados[${i}].comentario=this.value" style="width:100%;margin-top:7px;padding:5px 8px;font-size:12px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;color:var(--text);">
     </div>
     <button class="btn btn-danger" onclick="catRemoverProduto(${i})" style="padding:4px 10px;flex-shrink:0;">✕</button>
   </div>`).join('');
@@ -3573,8 +3574,17 @@ async function gerarCatalogoPdf(){
 
       // Nome + código
       doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(15,15,15);
-      const nL=doc.splitTextToSize(p.nome||'',cw);doc.text(nL,ml,y);y+=nL.length*6+1;
+      // Comentário do produto: à direita do nome, em negrito (máx. 100 caracteres)
+      const com=String(it.comentario||'').trim().slice(0,100);
+      const comW=cw*0.5,yTop=y;
+      const nL=doc.splitTextToSize(p.nome||'',com?cw-comW-6:cw);doc.text(nL,ml,y);y+=nL.length*6+1;
       if(p.codigo){doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(130,130,130);doc.text(p.codigo,ml,y);y+=4;}
+      if(com){
+        doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(15,15,15);
+        const cL=doc.splitTextToSize(com,comW);
+        doc.text(cL,W-mr,yTop,{align:'right'});
+        y=Math.max(y,yTop+(cL.length-1)*4.1+2.5);
+      }
       doc.setDrawColor(190,190,190);doc.setLineWidth(0.3);doc.line(ml,y,W-mr,y);y+=3;
 
       // ── FOTOS ────────────────────────────────────
