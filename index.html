@@ -3850,14 +3850,15 @@ async function gerarCatalogoPdf(){
       if(!imgs[url]||imgs[url]==='')continue;
       const isLogo=url===loFornUrl||url===loAdUrl;
       const isCapa=url===capaUrl;
-      if(isLogo)     imgs[url]=await _resizeImg(imgs[url],350,0.82);
-      else if(isCapa)imgs[url]=await _resizeImg(imgs[url],900,0.82);
+      if(isLogo)     imgs[url]=await _resizeImg(imgs[url],1600,0.92);
+      else if(isCapa)imgs[url]=await _resizeImg(imgs[url],2400,0.92);
       else           imgs[url]=await _resizeImg(imgs[url],1000,0.82); // fotos de produto: comprime pra acelerar a geração
     }
   }
-  if(_catFiles.catCapa)imgs['__cc__']=await _resizeImg(_catFiles.catCapa,900,0.82);
-  if(_catFiles.catLogoForn)imgs['__lf__']=await _resizeImg(_catFiles.catLogoForn,350,0.82);
-  if(_catFiles.catLogoAd)imgs['__la__']=await _resizeImg(_catFiles.catLogoAd,350,0.82);
+  // Capa e logos: só reduz imagens gigantes, mantendo alta qualidade
+  if(_catFiles.catCapa)imgs['__cc__']=await _resizeImg(_catFiles.catCapa,2400,0.92);
+  if(_catFiles.catLogoForn)imgs['__lf__']=await _resizeImg(_catFiles.catLogoForn,1600,0.92);
+  if(_catFiles.catLogoAd)imgs['__la__']=await _resizeImg(_catFiles.catLogoAd,1600,0.92);
 
   const getCapaImg=()=>imgs['__cc__']||(_nf(capaUrl)?imgs[capaUrl]:null)||null;
   const getLoFornImg=()=>imgs['__lf__']||(_nf(loFornUrl)?imgs[loFornUrl]:null)||null;
