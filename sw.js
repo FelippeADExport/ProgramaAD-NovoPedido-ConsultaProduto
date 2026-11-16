@@ -1,7 +1,7 @@
 // Service Worker — AD Export (baseado no Index.html original)
 // Arquivos do site: REDE PRIMEIRO (sempre abre a versao nova).
 // O cache so e usado quando estiver offline.
-const SHELL_CACHE = 'adexport-shell-v22';
+const SHELL_CACHE = 'adexport-shell-v24';
 const IMG_CACHE = 'adexport-images-v3'; // NAO mudar: offline.js grava as fotos neste cache
 const SHELL_FILES = [
   './',

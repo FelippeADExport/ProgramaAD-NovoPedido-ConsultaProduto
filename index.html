@@ -3503,14 +3503,21 @@ function _catImpCasar(l){
   const b=cands[0],s2=cands[1]?cands[1].s:0;
   let status='nao',cod='';
   if(b&&b.s>=0.5){cod=b.p.codigo;status=(b.s>=0.97||(b.s>=0.8&&b.s-s2>=0.06)||(b.s>=0.6&&b.s-s2>=0.3))?'ok':'duvida';}
-  return {desc,formato:l.formato||'',preco:Math.round((parseFloat(l.preco)||0)*100)/100,cands,cod,status};
+  return {desc,formato:l.formato||'',preco:Math.round((parseFloat(l.preco)||0)*100)/100,cands,cod,status,statusOrig:status};
 }
 function _catImpMarcarDuplicados(){
   const cont={};_catImp.linhas.forEach(l=>{if(l.cod)cont[l.cod]=(cont[l.cod]||0)+1;});
   _catImp.linhas.forEach(l=>{if(l.cod&&!l.confirmado&&cont[l.cod]>1&&l.status==='ok')l.status='duvida';});
 }
 function catImpEscolher(i,cod){
-  const l=_catImp.linhas[i];l.cod=cod;l.confirmado=false;l.status=cod?'ok':'nao';
+  const l=_catImp.linhas[i];l.cod=cod;l.confirmado=false;l.status=cod?'ok':'nao';l.statusOrig=l.status;
+  _catImpMarcarDuplicados();_catImpRender();
+}
+function catImpRemoverLinha(i){
+  _catImp.linhas.splice(i,1);
+  _catImp.linhas.forEach(l=>{if(l.status==='duvida'&&!l.confirmado&&l.cod)l.status='ok';});
+  // recalcula o status original de dúvida (sem perder confirmações)
+  _catImp.linhas.forEach(l=>{if(!l.confirmado&&l.cod&&l.statusOrig==='duvida')l.status='duvida';});
   _catImpMarcarDuplicados();_catImpRender();
 }
 function catImpConfirmarLinha(i){
@@ -3532,7 +3539,7 @@ function _catImpRender(){
   const inp='padding:4px 6px;font-size:12px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;color:var(--text);';
   document.getElementById('catImpTabela').innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px;">
     <thead><tr style="text-align:left;color:var(--text3);font-size:11px;text-transform:uppercase;">
-      <th style="padding:6px 4px;"></th><th style="padding:6px 4px;">Lido na imagem</th><th style="padding:6px 4px;">Produto na planilha</th><th style="padding:6px 4px;width:80px;">Preço</th></tr></thead>
+      <th style="padding:6px 4px;"></th><th style="padding:6px 4px;">Lido na imagem</th><th style="padding:6px 4px;">Produto na planilha</th><th style="padding:6px 4px;width:80px;">Preço</th><th style="width:34px;"></th></tr></thead>
     <tbody>${L.map((l,i)=>{
       const opts=l.cands.map(c=>`<option value="${_catImpEsc(c.p.codigo)}" ${c.p.codigo===l.cod?'selected':''}>${_catImpEsc(c.p.nome)} · ${_catImpEsc(c.p.formato||'')} (${_catImpEsc(c.p.codigo)})</option>`).join('');
       const bg=l.status==='ok'?'':l.status==='duvida'?'background:rgba(255,159,67,.08);':'background:rgba(255,107,107,.08);';
@@ -3541,6 +3548,7 @@ function _catImpRender(){
         <td style="padding:6px 4px;"><div style="font-weight:600;">${_catImpEsc(l.desc)}</div><div style="color:var(--text3);font-size:11px;">${_catImpEsc(l.formato)}</div></td>
         <td style="padding:6px 4px;"><select onchange="catImpEscolher(${i},this.value)" style="width:100%;${inp}"><option value="">— Ignorar —</option>${opts}</select></td>
         <td style="padding:6px 4px;"><input type="number" step="0.01" value="${l.preco}" onchange="_catImp.linhas[${i}].preco=parseFloat(this.value)||0" style="width:72px;${inp}"></td>
+        <td style="padding:6px 4px;"><button class="btn btn-danger" onclick="catImpRemoverLinha(${i})" title="Remover da lista" style="padding:3px 8px;font-size:11px;">✕</button></td>
       </tr>`;}).join('')}</tbody></table>`;
 }
 
@@ -3570,7 +3578,12 @@ function catAutoTranslate(){const pt=(document.getElementById('catTituloPt')?.va
 
 // HELPERS
 function _resizeImg(dataUrl,maxPx,quality){return new Promise(resolve=>{if(!dataUrl||dataUrl===''){resolve(dataUrl);return;}const img=new Image();img.onload=()=>{const scale=Math.min(1,maxPx/Math.max(img.width||1,img.height||1));if(scale>=0.99){resolve(dataUrl);return;}const w=Math.round(img.width*scale),h=Math.round(img.height*scale);const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);resolve(c.toDataURL('image/jpeg',quality||0.80));};img.onerror=()=>resolve(dataUrl);img.src=dataUrl;});}
-function _addImgProp(doc,data,fmt,cx,cy,maxW,maxH,alignH,alias){try{const pr=doc.getImageProperties(data);const ratio=pr.width/pr.height;let w,h;if(ratio>maxW/maxH){w=maxW;h=maxW/ratio;}else{h=maxH;w=maxH*ratio;}let x=cx;if(alignH==='center')x=cx+(maxW-w)/2;else if(alignH==='right')x=cx+maxW-w;const y=cy+(maxH-h)/2;doc.addImage(data,fmt,x,y,w,h,alias||undefined);return{w,h,x,y};}catch(e){console.error('[catálogo] _addImgProp falhou:',e,data?String(data).slice(0,60):data);return null;}}
+// Dimensões das imagens calculadas UMA vez por PDF (getImageProperties decodifica a imagem inteira a cada chamada)
+let _catDims=new Map();
+function _catProps(doc,data){let pr=_catDims.get(data);if(!pr){const r=doc.getImageProperties(data);pr={width:r.width,height:r.height};_catDims.set(data,pr);}return pr;}
+// Libera o navegador entre etapas (MessageChannel não sofre o atraso que o setTimeout tem em abas/janelas em segundo plano)
+function _catYield(){return new Promise(r=>{const c=new MessageChannel();c.port1.onmessage=()=>{c.port1.close();r();};c.port2.postMessage(0);});}
+function _addImgProp(doc,data,fmt,cx,cy,maxW,maxH,alignH,alias){try{const pr=_catProps(doc,data);const ratio=pr.width/pr.height;let w,h;if(ratio>maxW/maxH){w=maxW;h=maxW/ratio;}else{h=maxH;w=maxH*ratio;}let x=cx;if(alignH==='center')x=cx+(maxW-w)/2;else if(alignH==='right')x=cx+maxW-w;const y=cy+(maxH-h)/2;doc.addImage(data,fmt,x,y,w,h,alias||undefined);return{w,h,x,y};}catch(e){console.error('[catálogo] _addImgProp falhou:',e,data?String(data).slice(0,60):data);return null;}}
 function _formatoToInch(fmt){const m=String(fmt||'').match(/(\d+(?:[.,]\d+)?)/g);if(!m||m.length<2)return'';const a=parseFloat(m[0].replace(',','.'));const b=parseFloat(m[1].replace(',','.'));if(isNaN(a)||isNaN(b))return'';return`${Math.round(a/2.54)}' x ${Math.round(b/2.54)}'`;}
 function _n(v,dec,suf){const n=+(v||0);if(!n)return'';return n.toFixed(dec||0)+(suf||'');}
 
@@ -3635,13 +3648,13 @@ async function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,g
 
   // ── Renderizar uma página por grupo ─────────────────────────
   for(const [gi,grp] of groups.entries()){
-    await new Promise(r=>setTimeout(r,0)); // libera o navegador entre páginas, evita travar a aba
+    await _catYield(); // libera o navegador entre páginas, evita travar a aba
     doc.addPage();
     let y=12;
 
     // Logo
     const loFI=getLoFornImg();
-    if(loFI){const r=_addImgProp(doc,loFI,'PNG',ml,y,cw,13,'center','pk_lf'+gi);y+=(r?r.h:13)+3;}else{y+=16;}
+    if(loFI){const r=_addImgProp(doc,loFI,'PNG',ml,y,cw,13,'center','logo_forn');y+=(r?r.h:13)+3;}else{y+=16;}
     doc.setDrawColor(190,190,190);doc.setLineWidth(0.3);doc.line(ml,y,W-mr,y);y+=5;
 
     // Título
@@ -3778,7 +3791,7 @@ async function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,g
     });
 
     const loAI=getLoAdImg();
-    if(loAI)_addImgProp(doc,loAI,'PNG',W-mr-40,H-13,40,10,'right','pk_la'+gi);
+    if(loAI)_addImgProp(doc,loAI,'PNG',W-mr-40,H-13,40,10,'right','logo_ad');
   } // fim grupos
 }
 
@@ -3790,6 +3803,10 @@ async function _drawPackingFinal(doc,items,packAm,packEu,mainLang,W,H,ml,mr,cw,g
 async function gerarCatalogoPdf(){
   if(!catSelecionados.length){showToast('Adicione ao menos um produto','error');return;}
   if(!window.jspdf){showToast('Biblioteca jsPDF não carregada','error');return;}
+  // Nome do arquivo = Título + Linha 1 (Título obrigatório)
+  const _linha1=(document.getElementById('catTituloPt')?.value||'').trim();
+  const _linha2=(document.getElementById('catTituloEs')?.value||'').trim();
+  if(!_linha1){showToast('Preencha o Título (é o nome do arquivo)','error');document.getElementById('catTituloPt')?.focus();return;}
 
   const mainLang=catMainLang;
   const secLangs=_getSecLangs();
@@ -3838,9 +3855,9 @@ async function gerarCatalogoPdf(){
       else           imgs[url]=await _resizeImg(imgs[url],1000,0.82); // fotos de produto: comprime pra acelerar a geração
     }
   }
-  if(_catFiles.catCapa)imgs['__cc__']=_catFiles.catCapa;
-  if(_catFiles.catLogoForn)imgs['__lf__']=_catFiles.catLogoForn;
-  if(_catFiles.catLogoAd)imgs['__la__']=_catFiles.catLogoAd;
+  if(_catFiles.catCapa)imgs['__cc__']=await _resizeImg(_catFiles.catCapa,900,0.82);
+  if(_catFiles.catLogoForn)imgs['__lf__']=await _resizeImg(_catFiles.catLogoForn,350,0.82);
+  if(_catFiles.catLogoAd)imgs['__la__']=await _resizeImg(_catFiles.catLogoAd,350,0.82);
 
   const getCapaImg=()=>imgs['__cc__']||(_nf(capaUrl)?imgs[capaUrl]:null)||null;
   const getLoFornImg=()=>imgs['__lf__']||(_nf(loFornUrl)?imgs[loFornUrl]:null)||null;
@@ -3848,6 +3865,8 @@ async function gerarCatalogoPdf(){
   const getProdImg=(it,n)=>{const u=((n===2?it.produto.imagem2:n===3?it.produto.imagem3:it.produto.imagem)||'').trim();const r=u?imgs[u]:null;return(r&&r!=='')?r:null;};
 
   status.textContent='⏳ Gerando PDF...';
+  _catDims=new Map();
+  await _catYield();
   try{
     const {jsPDF}=window.jspdf;
     const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
@@ -3859,7 +3878,7 @@ async function gerarCatalogoPdf(){
 
     // ── CAPA ──────────────────────────────────────
     const capImg=getCapaImg();
-    if(capImg){try{const pr=doc.getImageProperties(capImg);const capH=Math.min(95,W*pr.height/pr.width);doc.addImage(capImg,'JPEG',0,0,W,capH,'capa');}catch(e){doc.addImage(capImg,'JPEG',0,0,W,90,'capa');}}
+    if(capImg){try{const pr=_catProps(doc,capImg);const capH=Math.min(95,W*pr.height/pr.width);doc.addImage(capImg,'JPEG',0,0,W,capH,'capa');}catch(e){doc.addImage(capImg,'JPEG',0,0,W,90,'capa');}}
     let y=108;
     const loFImg=getLoFornImg();
     if(loFImg){const r=_addImgProp(doc,loFImg,'PNG',ml,y,cw,22,'center','logo_forn');y+=(r?r.h:20)+8;}else{y+=28;}
@@ -3873,14 +3892,14 @@ async function gerarCatalogoPdf(){
 
     // ── PÁGINAS DE PRODUTO ─────────────────────────
     for(const [prodIdx,it] of catSelecionados.entries()){
-      if(prodIdx%3===0)await new Promise(r=>setTimeout(r,0)); // libera o navegador a cada 3 produtos
+      if(prodIdx%3===0){status.textContent='⏳ Gerando PDF... produto '+(prodIdx+1)+' de '+catSelecionados.length;await _catYield();} // libera o navegador a cada 3 produtos
       doc.addPage();
       const p=it.produto;
       let y=10;
 
       // Logo
       const loFI=getLoFornImg();
-      if(loFI){const r=_addImgProp(doc,loFI,'PNG',ml,y,cw,14,'center','logo_forn_p');y+=(r?r.h:14)+4;}else{y+=18;}
+      if(loFI){const r=_addImgProp(doc,loFI,'PNG',ml,y,cw,14,'center','logo_forn');y+=(r?r.h:14)+4;}else{y+=18;}
       doc.setDrawColor(190,190,190);doc.setLineWidth(0.4);doc.line(ml,y,W-mr,y);y+=5;
 
       // Nome + código
@@ -3904,12 +3923,12 @@ async function gerarCatalogoPdf(){
       if(nF===0){y+=10;}
       else if(nF===1){
         const fi=availImgs[0];const maxH=100,maxW=128;
-        try{const pr=doc.getImageProperties(fi.img);const ratio=pr.width/pr.height;let iW=maxW,iH=maxW/ratio;if(iH>maxH){iH=maxH;iW=maxH*ratio;}const ix=ml+(cw-iW)/2;doc.addImage(fi.img,'JPEG',ix,y,iW,iH,`p_${p.codigo}_f${fi.n}`);y+=iH+4;}catch(e){console.error('[catálogo] falha ao inserir foto do produto:',e,fi.img?String(fi.img).slice(0,60):fi.img);y+=10;}
+        try{const pr=_catProps(doc,fi.img);const ratio=pr.width/pr.height;let iW=maxW,iH=maxW/ratio;if(iH>maxH){iH=maxH;iW=maxH*ratio;}const ix=ml+(cw-iW)/2;doc.addImage(fi.img,'JPEG',ix,y,iW,iH,`p_${p.codigo}_f${fi.n}`);y+=iH+4;}catch(e){console.error('[catálogo] falha ao inserir foto do produto:',e,fi.img?String(fi.img).slice(0,60):fi.img);y+=10;}
       }else{
         const gap=3,cW=(cw-gap*(nF-1))/nF,maxH=82;let usedH=0;
         availImgs.forEach((fi,idx)=>{
           const xC=ml+idx*(cW+gap);
-          try{const pr=doc.getImageProperties(fi.img);const ratio=pr.width/pr.height;let iW=cW,iH=cW/ratio;if(iH>maxH){iH=maxH;iW=maxH*ratio;}if(iW>cW){iW=cW;iH=cW/ratio;}const ix=xC+(cW-iW)/2,iy=y+(maxH-iH)/2;doc.addImage(fi.img,'JPEG',ix,iy,iW,iH,`p_${p.codigo}_f${fi.n}`);usedH=Math.max(usedH,iH);}
+          try{const pr=_catProps(doc,fi.img);const ratio=pr.width/pr.height;let iW=cW,iH=cW/ratio;if(iH>maxH){iH=maxH;iW=maxH*ratio;}if(iW>cW){iW=cW;iH=cW/ratio;}const ix=xC+(cW-iW)/2,iy=y+(maxH-iH)/2;doc.addImage(fi.img,'JPEG',ix,iy,iW,iH,`p_${p.codigo}_f${fi.n}`);usedH=Math.max(usedH,iH);}
           catch(e){usedH=Math.max(usedH,maxH);}
         });
         y+=Math.max(usedH,maxH)+4;
@@ -4030,28 +4049,31 @@ async function gerarCatalogoPdf(){
 
       // Logo AD rodapé
       const loAI=getLoAdImg();
-      if(loAI)_addImgProp(doc,loAI,'PNG',W-mr-40,H-13,40,10,'right','logo_ad_p');
+      if(loAI)_addImgProp(doc,loAI,'PNG',W-mr-40,H-13,40,10,'right','logo_ad');
 
       // ── PACKING APÓS CADA PRODUTO ─────────────────
       // packing agora vai ao final do catálogo
     }
 
     // Packing ao final (uma vez para todos os produtos)
+    if(doPack){status.textContent='⏳ Gerando PDF... packing';await _catYield();}
     if(doPack)await _drawPackingFinal(doc,catSelecionados,packAm,packEu,mainLang,W,H,ml,mr,cw,getLoFornImg,getLoAdImg,showFob,showExw);
 
-    // Salvar e limpar memória
-    // Gerar blob URL para botão "Abrir PDF"
-    try{_catLastBlobUrl=URL.createObjectURL(doc.output('blob'));const ab=document.getElementById('catBtnAbrirPdf');if(ab)ab.style.display='';}catch(_){}
-    const _anoStr=String(ano).replace(/\//g,'-');
-    const fn='Catalogo_'+(titulos.pt||titulos.es||'AD').replace(/[^a-zA-Z0-9]/g,'_')+'_'+_anoStr+'.pdf';
-    doc.save(fn);
+    // Salvar: gera o arquivo UMA vez só e reaproveita para baixar e para o botão "Abrir PDF"
+    status.textContent='⏳ Salvando arquivo...';await _catYield();
+    const fn=(_linha1+(_linha2?' '+_linha2:'')).replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,' ').trim()+'.pdf';
+    const blob=doc.output('blob');
+    if(_catLastBlobUrl){try{URL.revokeObjectURL(_catLastBlobUrl);}catch(_){}}
+    _catLastBlobUrl=URL.createObjectURL(blob);
+    const ab=document.getElementById('catBtnAbrirPdf');if(ab)ab.style.display='';
+    const a=document.createElement('a');a.href=_catLastBlobUrl;a.download=fn;document.body.appendChild(a);a.click();a.remove();
     showToast('PDF gerado: '+fn,'success');
 
   }catch(e){showToast('Erro: '+e.message,'error');console.error('PDF error:',e);}
   finally{
     btn.disabled=false;status.style.display='none';
     // Liberar memória das imagens para o próximo PDF
-    imgs={};
+    imgs={};_catDims=new Map();
     if(typeof window.gc==='function')try{window.gc();}catch(_){}
   }
 }
