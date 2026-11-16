@@ -1329,6 +1329,7 @@ tr:has(.ped-cb:checked) td{background:rgba(232,197,71,0.06)!important}
               <div style="margin-bottom:14px;"><label>Buscar por código ou nome</label>
                 <div style="position:relative;"><input type="text" id="catBuscaCodigo" placeholder="Digite código ou nome..." oninput="catBuscaInput()" onkeydown="if(event.key==='Escape')document.getElementById('cat-busca-dropdown').style.display='none';" autocomplete="off"><div id="cat-busca-dropdown"></div></div>
               </div>
+              <div style="margin-bottom:14px;"><button class="btn btn-secondary btn-block" onclick="catImpAbrir()" style="padding:9px 14px;">📷 Importar de imagem (tabela da fábrica)</button></div>
               <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:12px;margin-bottom:8px;">
                 <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;">Produtos selecionados</div>
                 <button class="btn btn-secondary btn-sm" onclick="catLimparSelecionados()" style="padding:4px 10px;font-size:11px;">🗑 Limpar</button>
@@ -1362,6 +1363,52 @@ tr:has(.ped-cb:checked) td{background:rgba(232,197,71,0.06)!important}
       <p style="margin-top:12px;color:var(--danger);font-size:13px;font-weight:500;">⚠ Esta ação não pode ser desfeita.</p>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="fecharModalExcluir()">Cancelar</button><button class="btn btn-danger" id="btnConfirmarExcluir">🗑 Sim, excluir</button></div>
+  </div>
+</div>
+
+<!-- MODAL IMPORTAR DE IMAGEM (Catálogo) -->
+<div class="modal-backdrop" id="modalCatImp" style="display:none;">
+  <div class="modal" style="max-width:820px;max-height:92vh;display:flex;flex-direction:column;">
+    <div class="modal-header"><div class="modal-icon">📷</div><div style="flex:1;"><div class="modal-title">Importar produtos de imagem</div><div style="font-size:12px;color:var(--text3);margin-top:3px;">Envie o print da tabela da fábrica. A IA lê os produtos e preços.</div></div><button class="btn btn-secondary" onclick="catImpFechar()" style="padding:4px 10px;">✕</button></div>
+    <div class="modal-body" style="overflow-y:auto;flex:1;">
+      <!-- ETAPA 1 -->
+      <div id="catImpEtapa1">
+        <label id="catImpDrop" style="display:block;border:2px dashed var(--border);border-radius:10px;padding:18px;text-align:center;cursor:pointer;color:var(--text3);font-size:13px;">
+          <input type="file" accept="image/*" style="display:none;" onchange="catImpArquivo(this.files[0])">
+          <div id="catImpDropTxt">📁 Clique para escolher a imagem, arraste aqui ou cole com <strong>Ctrl+V</strong></div>
+          <img id="catImpPreview" src="" style="display:none;max-width:100%;max-height:260px;margin:8px auto 0;border-radius:6px;">
+        </label>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;align-items:center;">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Preço da tabela vai para</div>
+            <div style="display:flex;gap:8px;">
+              <button class="cat-toggle active" id="catImpDestFob" onclick="catImpDest('fob')">FOB</button>
+              <button class="cat-toggle" id="catImpDestExw" onclick="catImpDest('exw')">EXW</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Lista atual</div>
+            <button class="cat-toggle active" id="catImpLimpar" onclick="this.classList.toggle('active')">Limpar antes de importar</button>
+          </div>
+        </div>
+        <div style="margin-top:14px;">
+          <label>Chave da API Gemini <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent);font-size:11px;margin-left:6px;">obter chave grátis ↗</a></label>
+          <input type="password" id="catImpKey" placeholder="Cole aqui (fica salva só neste navegador)" autocomplete="off">
+        </div>
+      </div>
+      <!-- ETAPA 2 -->
+      <div id="catImpEtapa2" style="display:none;">
+        <div id="catImpResumo" style="font-size:13px;margin-bottom:10px;"></div>
+        <div id="catImpTabela"></div>
+      </div>
+      <div id="catImpStatus" style="display:none;margin-top:12px;font-size:13px;color:var(--text2);"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="catImpBtnVoltar" onclick="catImpVoltar()" style="display:none;">← Outra imagem</button>
+      <button class="btn btn-secondary" onclick="catImpFechar()">Cancelar</button>
+      <button class="btn btn-primary" id="catImpBtnLer" onclick="catImpLer()">🔍 Ler imagem</button>
+      <button class="btn btn-success" id="catImpBtnAdd" onclick="catImpConfirmar()" style="display:none;">✓ Adicionar à lista</button>
+    </div>
   </div>
 </div>
 
@@ -3252,6 +3299,240 @@ function catRenderSelecionados(){
     </div>
     <button class="btn btn-danger" onclick="catRemoverProduto(${i})" style="padding:4px 10px;flex-shrink:0;">✕</button>
   </div>`).join('');
+}
+
+// ============================================================
+// CATÁLOGO: IMPORTAR PRODUTOS DE IMAGEM (Gemini)
+// ============================================================
+const CAT_IMP_KEY='adexport_gemini_key', CAT_IMP_MODEL='adexport_gemini_model';
+let _catImp={b64:'',mime:'',dest:'fob',linhas:[]};
+
+function _catImpEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function _catImpLS(k,v){try{if(v===undefined)return localStorage.getItem(k)||'';localStorage.setItem(k,v);}catch(e){return '';}}
+
+function catImpAbrir(){
+  if(!PRODUCTS.length){showToast('Produtos ainda não carregados','error');return;}
+  _catImp={b64:'',mime:'',dest:_catImp.dest||'fob',linhas:[]};
+  document.getElementById('catImpKey').value=_catImpLS(CAT_IMP_KEY);
+  document.getElementById('catImpPreview').style.display='none';
+  document.getElementById('catImpDropTxt').style.display='';
+  catImpDest(_catImp.dest);
+  catImpVoltar();
+  document.getElementById('modalCatImp').style.display='flex';
+}
+function catImpFechar(){document.getElementById('modalCatImp').style.display='none';}
+function catImpVoltar(){
+  document.getElementById('catImpEtapa1').style.display='';
+  document.getElementById('catImpEtapa2').style.display='none';
+  document.getElementById('catImpBtnLer').style.display='';
+  document.getElementById('catImpBtnAdd').style.display='none';
+  document.getElementById('catImpBtnVoltar').style.display='none';
+  _catImpStatus('');
+}
+function catImpDest(d){
+  _catImp.dest=d;
+  document.getElementById('catImpDestFob').classList.toggle('active',d==='fob');
+  document.getElementById('catImpDestExw').classList.toggle('active',d==='exw');
+}
+function _catImpStatus(msg,erro){const el=document.getElementById('catImpStatus');el.style.display=msg?'block':'none';el.style.color=erro?'var(--danger)':'var(--text2)';el.textContent=msg;}
+
+// Lê o arquivo, reduz para no máx. 2000px (envio mais rápido) e guarda em base64
+function catImpArquivo(file){
+  if(!file||!/^image\//.test(file.type)){showToast('Escolha um arquivo de imagem','error');return;}
+  const fr=new FileReader();
+  fr.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=2000,k=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+      const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);
+      const url=c.toDataURL('image/jpeg',0.92);
+      _catImp.b64=url.split(',')[1];_catImp.mime='image/jpeg';
+      const pv=document.getElementById('catImpPreview');pv.src=url;pv.style.display='block';
+      document.getElementById('catImpDropTxt').style.display='none';
+      _catImpStatus('');
+    };
+    img.src=e.target.result;
+  };
+  fr.readAsDataURL(file);
+}
+// Colar (Ctrl+V) e arrastar
+document.addEventListener('paste',e=>{
+  const m=document.getElementById('modalCatImp');if(!m||m.style.display==='none')return;
+  const it=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));
+  if(it){e.preventDefault();catImpArquivo(it.getAsFile());}
+});
+document.addEventListener('dragover',e=>{if(e.target.closest&&e.target.closest('#catImpDrop'))e.preventDefault();});
+document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#catImpDrop')){e.preventDefault();catImpArquivo(e.dataTransfer.files[0]);}});
+
+// ---------- Gemini ----------
+const _CAT_IMP_PROMPT='Esta imagem é uma tabela de preços de revestimentos cerâmicos enviada pela fábrica. '+
+ 'Extraia TODAS as linhas de produto, na ordem em que aparecem. Para cada linha retorne: '+
+ 'descricao = texto da coluna de descrição/produto, sem anotações entre parênteses como "(Lançamento)"; '+
+ 'formato = formato da peça (ex.: 60x60, 31x60), da coluna de formato ou do próprio nome; '+
+ 'preco = preço como número com ponto decimal (a tabela usa vírgula decimal, ex.: 2,85 -> 2.85). '+
+ 'Ignore cabeçalhos, totais e linhas cortadas que não dão para ler inteiras. Não invente linhas.';
+
+async function _catGeminiReq(key,model){
+  const body={
+    contents:[{parts:[{text:_CAT_IMP_PROMPT},{inline_data:{mime_type:_catImp.mime,data:_catImp.b64}}]}],
+    generationConfig:{temperature:0,responseMimeType:'application/json',
+      responseSchema:{type:'ARRAY',items:{type:'OBJECT',properties:{descricao:{type:'STRING'},formato:{type:'STRING'},preco:{type:'NUMBER'}},required:['descricao','preco']}}}
+  };
+  return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+encodeURIComponent(key),
+    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+}
+// Se o modelo salvo deixar de existir, procura o "flash" mais novo disponível
+async function _catGeminiAcharModelo(key){
+  const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key='+encodeURIComponent(key));
+  if(!r.ok)return '';
+  const d=await r.json();
+  const ver=n=>parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/)||[])[1]||0);
+  const ms=(d.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
+    .map(m=>m.name.replace('models/','')).filter(n=>/^gemini-.*flash/i.test(n)&&!/lite|image|tts|live|audio|exp|8b|thinking/i.test(n))
+    .sort((a,b)=>(ver(b)-ver(a))||(/preview/.test(a)-/preview/.test(b))||(a.length-b.length));
+  return ms[0]||'';
+}
+async function _catGemini(key){
+  let model=_catImpLS(CAT_IMP_MODEL)||'gemini-2.5-flash';
+  let r=await _catGeminiReq(key,model);
+  if(r.status===404){
+    const novo=await _catGeminiAcharModelo(key);
+    if(novo&&novo!==model){model=novo;_catImpLS(CAT_IMP_MODEL,model);r=await _catGeminiReq(key,model);}
+  }
+  if(!r.ok){
+    let msg='';try{msg=(await r.json()).error?.message||'';}catch(e){}
+    if(r.status===400&&/API key/i.test(msg))throw new Error('Chave da API inválida');
+    if(r.status===429)throw new Error('Limite da cota gratuita atingido. Aguarde 1 minuto e tente de novo.');
+    throw new Error('Gemini '+r.status+(msg?': '+msg:''));
+  }
+  const d=await r.json();
+  const txt=(d.candidates?.[0]?.content?.parts||[]).filter(p=>!p.thought).map(p=>p.text||'').join('').replace(/^```(?:json)?|```$/gm,'').trim();
+  const arr=JSON.parse(txt||'[]');
+  if(!Array.isArray(arr))throw new Error('Resposta inesperada da IA');
+  return arr;
+}
+
+async function catImpLer(){
+  const key=(document.getElementById('catImpKey').value||'').trim();
+  if(!_catImp.b64){showToast('Escolha a imagem primeiro','error');return;}
+  if(!key){showToast('Informe a chave da API Gemini','error');return;}
+  _catImpLS(CAT_IMP_KEY,key);
+  const btn=document.getElementById('catImpBtnLer');btn.disabled=true;
+  _catImpStatus('⏳ Lendo a tabela... (pode levar até 30 s)');
+  try{
+    const lidos=await _catGemini(key);
+    if(!lidos.length)throw new Error('Nenhum produto encontrado na imagem');
+    _catImp.linhas=lidos.map(l=>_catImpCasar(l));
+    _catImpMarcarDuplicados();
+    _catImpRender();
+    document.getElementById('catImpEtapa1').style.display='none';
+    document.getElementById('catImpEtapa2').style.display='';
+    btn.style.display='none';
+    document.getElementById('catImpBtnAdd').style.display='';
+    document.getElementById('catImpBtnVoltar').style.display='';
+    _catImpStatus('');
+  }catch(e){
+    _catImpStatus('❌ '+(e.message||e),true);
+  }finally{btn.disabled=false;}
+}
+
+// ---------- Casamento com a planilha (nome + formato) ----------
+function _catImpFmt(s){
+  const m=String(s||'').toUpperCase().replace(/O(?=\d)|(?<=\d)O/g,'0').match(/(\d+(?:[.,]\d+)?)\s*[X×]\s*(\d+(?:[.,]\d+)?)/);
+  return m?(m[1].replace(',','.')+'X'+m[2].replace(',','.')):'';
+}
+function _catImpNorm(s){
+  return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase()
+    .replace(/\(.*?(\)|$)/g,' ')
+    .replace(/(?<=\d)O|O(?=\d)/g,'0')
+    .replace(/\d+(?:[.,]\d+)?\s*[X×]\s*\d+(?:[.,]\d+)?/g,' ')
+    .replace(/\bCM\b/g,' ')
+    .replace(/[^A-Z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+}
+function _catImpBigr(s){const a=[];s=s.replace(/ /g,'');for(let i=0;i<s.length-1;i++)a.push(s.substr(i,2));return a;}
+function _catImpDice(a,b){
+  const A=_catImpBigr(a),B=_catImpBigr(b);if(!A.length||!B.length)return a===b?1:0;
+  const m={};A.forEach(x=>m[x]=(m[x]||0)+1);let c=0;B.forEach(x=>{if(m[x]>0){c++;m[x]--;}});
+  return 2*c/(A.length+B.length);
+}
+function _catImpTokEq(a,b){
+  if(a===b)return true;
+  if(a.length>=3&&b.length>=3&&(a.startsWith(b)||b.startsWith(a)))return true;
+  return a.length>=5&&b.length>=5&&_catImpDice(a,b)>=0.8;
+}
+function _catImpScore(nLido,fLido,p){
+  const nP=_catImpNorm(p.nome);if(!nP)return 0;
+  const tA=nLido.split(' ').filter(Boolean),tB=nP.split(' ').filter(Boolean);
+  let inter=0;const usados=new Set();
+  tB.forEach(b=>{const i=tA.findIndex((a,ix)=>!usados.has(ix)&&_catImpTokEq(a,b));if(i>=0){usados.add(i);inter++;}});
+  const tok=tA.length+tB.length?2*inter/(tA.length+tB.length):0;
+  let sc=0.6*tok+0.4*_catImpDice(nLido,nP);
+  // 1ª palavra do nome lido (ex.: ANGELUS, SHINE) precisa existir no produto
+  if(tA[0]&&!tB.some(b=>_catImpTokEq(tA[0],b)))sc*=0.6;
+  const fP=_catImpFmt(p.formato)||_catImpFmt(p.nome);
+  if(fLido&&fP)sc=(fLido===fP)?Math.min(1,sc+0.12):sc*0.7;
+  return sc;
+}
+function _catImpCasar(l){
+  const desc=String(l.descricao||'').trim();
+  const fLido=_catImpFmt(l.formato)||_catImpFmt(desc);
+  const nLido=_catImpNorm(desc);
+  const cands=PRODUCTS.filter(p=>p.codigo).map(p=>({p,s:_catImpScore(nLido,fLido,p)})).sort((a,b)=>b.s-a.s).slice(0,8);
+  const b=cands[0],s2=cands[1]?cands[1].s:0;
+  let status='nao',cod='';
+  if(b&&b.s>=0.5){cod=b.p.codigo;status=(b.s>=0.97||(b.s>=0.8&&b.s-s2>=0.06)||(b.s>=0.6&&b.s-s2>=0.3))?'ok':'duvida';}
+  return {desc,formato:l.formato||'',preco:Math.round((parseFloat(l.preco)||0)*100)/100,cands,cod,status};
+}
+function _catImpMarcarDuplicados(){
+  const cont={};_catImp.linhas.forEach(l=>{if(l.cod)cont[l.cod]=(cont[l.cod]||0)+1;});
+  _catImp.linhas.forEach(l=>{if(l.cod&&cont[l.cod]>1&&l.status==='ok')l.status='duvida';});
+}
+function catImpEscolher(i,cod){
+  const l=_catImp.linhas[i];l.cod=cod;l.status=cod?'ok':'nao';
+  _catImpMarcarDuplicados();_catImpRender();
+}
+function _catImpRender(){
+  const L=_catImp.linhas;
+  const n={ok:0,duvida:0,nao:0};L.forEach(l=>n[l.status]++);
+  document.getElementById('catImpResumo').innerHTML=
+    `<strong>${L.length}</strong> linhas lidas · <span style="color:var(--success);">✅ ${n.ok} ok</span> · <span style="color:var(--warn);">⚠️ ${n.duvida} conferir</span> · <span style="color:var(--danger);">❌ ${n.nao} sem correspondência</span>`+
+    `<div style="font-size:11px;color:var(--text3);margin-top:4px;">Confira os itens ⚠️ e ❌. Preços em ${_catImp.dest.toUpperCase()}. Linhas em "Ignorar" não entram na lista.</div>`;
+  const ic={ok:'✅',duvida:'⚠️',nao:'❌'};
+  const inp='padding:4px 6px;font-size:12px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;color:var(--text);';
+  document.getElementById('catImpTabela').innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead><tr style="text-align:left;color:var(--text3);font-size:11px;text-transform:uppercase;">
+      <th style="padding:6px 4px;"></th><th style="padding:6px 4px;">Lido na imagem</th><th style="padding:6px 4px;">Produto na planilha</th><th style="padding:6px 4px;width:80px;">Preço</th></tr></thead>
+    <tbody>${L.map((l,i)=>{
+      const opts=l.cands.map(c=>`<option value="${_catImpEsc(c.p.codigo)}" ${c.p.codigo===l.cod?'selected':''}>${_catImpEsc(c.p.nome)} · ${_catImpEsc(c.p.formato||'')} (${_catImpEsc(c.p.codigo)})</option>`).join('');
+      const bg=l.status==='ok'?'':l.status==='duvida'?'background:rgba(255,159,67,.08);':'background:rgba(255,107,107,.08);';
+      return `<tr style="border-top:1px solid var(--border);${bg}">
+        <td style="padding:6px 4px;">${ic[l.status]}</td>
+        <td style="padding:6px 4px;"><div style="font-weight:600;">${_catImpEsc(l.desc)}</div><div style="color:var(--text3);font-size:11px;">${_catImpEsc(l.formato)}</div></td>
+        <td style="padding:6px 4px;"><select onchange="catImpEscolher(${i},this.value)" style="width:100%;${inp}"><option value="">— Ignorar —</option>${opts}</select></td>
+        <td style="padding:6px 4px;"><input type="number" step="0.01" value="${l.preco}" onchange="_catImp.linhas[${i}].preco=parseFloat(this.value)||0" style="width:72px;${inp}"></td>
+      </tr>`;}).join('')}</tbody></table>`;
+}
+
+function catImpConfirmar(){
+  const sel=_catImp.linhas.filter(l=>l.cod);
+  if(!sel.length){showToast('Nenhum produto selecionado','error');return;}
+  if(document.getElementById('catImpLimpar').classList.contains('active'))catSelecionados=[];
+  const dest=_catImp.dest;let add=0,upd=0;
+  sel.forEach(l=>{
+    const p=PRODUCTS.find(x=>x.codigo===l.cod);if(!p)return;
+    let it=catSelecionados.find(x=>x.produto.codigo===p.codigo);
+    if(it){upd++;}
+    else{it={produto:p,fob_edit:parseFloat(p.preco_fob)||0,exw_edit:parseFloat(p.preco_exw)||0};catSelecionados.push(it);add++;}
+    if(dest==='fob')it.fob_edit=l.preco;else it.exw_edit=l.preco;
+  });
+  // Liga a exibição de preço no modal escolhido
+  if(!_isOn('catMostrarPreco'))catToggle_Preco();
+  document.getElementById('catMostrarFob').classList.toggle('active',dest==='fob');
+  document.getElementById('catMostrarExw').classList.toggle('active',dest==='exw');
+  catRenderSelecionados();
+  catImpFechar();
+  showToast(add+' adicionado(s)'+(upd?', '+upd+' atualizado(s)':''),'success');
 }
 
 // TRADUÇÃO
