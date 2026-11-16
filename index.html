@@ -1369,15 +1369,15 @@ tr:has(.ped-cb:checked) td{background:rgba(232,197,71,0.06)!important}
 <!-- MODAL IMPORTAR DE IMAGEM (Catálogo) -->
 <div class="modal-backdrop" id="modalCatImp" style="display:none;">
   <div class="modal" style="max-width:820px;max-height:92vh;display:flex;flex-direction:column;">
-    <div class="modal-header"><div class="modal-icon">📷</div><div style="flex:1;"><div class="modal-title">Importar produtos de imagem</div><div style="font-size:12px;color:var(--text3);margin-top:3px;">Envie o print da tabela da fábrica. A IA lê os produtos e preços.</div></div><button class="btn btn-secondary" onclick="catImpFechar()" style="padding:4px 10px;">✕</button></div>
+    <div class="modal-header"><div class="modal-icon">📷</div><div style="flex:1;"><div class="modal-title">Importar produtos de imagem</div><div style="font-size:12px;color:var(--text3);margin-top:3px;">Envie um ou mais prints da tabela da fábrica. A IA lê os produtos e preços.</div></div><button class="btn btn-secondary" onclick="catImpFechar()" style="padding:4px 10px;">✕</button></div>
     <div class="modal-body" style="overflow-y:auto;flex:1;">
       <!-- ETAPA 1 -->
       <div id="catImpEtapa1">
         <label id="catImpDrop" style="display:block;border:2px dashed var(--border);border-radius:10px;padding:18px;text-align:center;cursor:pointer;color:var(--text3);font-size:13px;">
-          <input type="file" accept="image/*" style="display:none;" onchange="catImpArquivo(this.files[0])">
-          <div id="catImpDropTxt">📁 Clique para escolher a imagem, arraste aqui ou cole com <strong>Ctrl+V</strong></div>
-          <img id="catImpPreview" src="" style="display:none;max-width:100%;max-height:260px;margin:8px auto 0;border-radius:6px;">
+          <input type="file" accept="image/*" multiple style="display:none;" onchange="catImpArquivos(this.files);this.value='';">
+          <div>📁 Clique para escolher as imagens (uma ou várias), arraste aqui ou cole com <strong>Ctrl+V</strong></div>
         </label>
+        <div id="catImpThumbs" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;align-items:center;">
           <div>
             <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Preço da tabela vai para</div>
@@ -1406,7 +1406,7 @@ tr:has(.ped-cb:checked) td{background:rgba(232,197,71,0.06)!important}
     <div class="modal-footer">
       <button class="btn btn-secondary" id="catImpBtnVoltar" onclick="catImpVoltar()" style="display:none;">← Outra imagem</button>
       <button class="btn btn-secondary" onclick="catImpFechar()">Cancelar</button>
-      <button class="btn btn-primary" id="catImpBtnLer" onclick="catImpLer()">🔍 Ler imagem</button>
+      <button class="btn btn-primary" id="catImpBtnLer" onclick="catImpLer()">🔍 Ler imagens</button>
       <button class="btn btn-success" id="catImpBtnAdd" onclick="catImpConfirmar()" style="display:none;">✓ Adicionar à lista</button>
     </div>
   </div>
@@ -3305,17 +3305,16 @@ function catRenderSelecionados(){
 // CATÁLOGO: IMPORTAR PRODUTOS DE IMAGEM (Gemini)
 // ============================================================
 const CAT_IMP_KEY='adexport_gemini_key', CAT_IMP_MODEL='adexport_gemini_model';
-let _catImp={b64:'',mime:'',dest:'fob',linhas:[]};
+let _catImp={imgs:[],dest:'fob',linhas:[]};
 
 function _catImpEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function _catImpLS(k,v){try{if(v===undefined)return localStorage.getItem(k)||'';localStorage.setItem(k,v);}catch(e){return '';}}
 
 function catImpAbrir(){
   if(!PRODUCTS.length){showToast('Produtos ainda não carregados','error');return;}
-  _catImp={b64:'',mime:'',dest:_catImp.dest||'fob',linhas:[]};
+  _catImp={imgs:[],dest:_catImp.dest||'fob',linhas:[]};
   document.getElementById('catImpKey').value=_catImpLS(CAT_IMP_KEY);
-  document.getElementById('catImpPreview').style.display='none';
-  document.getElementById('catImpDropTxt').style.display='';
+  _catImpThumbs();
   catImpDest(_catImp.dest);
   catImpVoltar();
   document.getElementById('modalCatImp').style.display='flex';
@@ -3336,9 +3335,14 @@ function catImpDest(d){
 }
 function _catImpStatus(msg,erro){const el=document.getElementById('catImpStatus');el.style.display=msg?'block':'none';el.style.color=erro?'var(--danger)':'var(--text2)';el.textContent=msg;}
 
-// Lê o arquivo, reduz para no máx. 2000px (envio mais rápido) e guarda em base64
+// Lê os arquivos, reduz para no máx. 2000px (envio mais rápido) e guarda em base64
+function catImpArquivos(files){
+  const lista=[...(files||[])].filter(f=>/^image\//.test(f.type));
+  if(!lista.length){showToast('Escolha arquivos de imagem','error');return;}
+  lista.forEach(catImpArquivo);
+}
 function catImpArquivo(file){
-  if(!file||!/^image\//.test(file.type)){showToast('Escolha um arquivo de imagem','error');return;}
+  if(!file||!/^image\//.test(file.type))return;
   const fr=new FileReader();
   fr.onload=e=>{
     const img=new Image();
@@ -3347,23 +3351,30 @@ function catImpArquivo(file){
       const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
       const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);
       const url=c.toDataURL('image/jpeg',0.92);
-      _catImp.b64=url.split(',')[1];_catImp.mime='image/jpeg';
-      const pv=document.getElementById('catImpPreview');pv.src=url;pv.style.display='block';
-      document.getElementById('catImpDropTxt').style.display='none';
-      _catImpStatus('');
+      _catImp.imgs.push({url,b64:url.split(',')[1],mime:'image/jpeg'});
+      _catImpThumbs();_catImpStatus('');
     };
     img.src=e.target.result;
   };
   fr.readAsDataURL(file);
 }
+function catImpRemoverImg(i){_catImp.imgs.splice(i,1);_catImpThumbs();}
+function _catImpThumbs(){
+  const el=document.getElementById('catImpThumbs');if(!el)return;
+  el.innerHTML=_catImp.imgs.map((im,i)=>`<div style="position:relative;width:110px;height:110px;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:#fff;">
+    <img src="${im.url}" style="width:100%;height:100%;object-fit:cover;object-position:top;">
+    <div style="position:absolute;left:4px;bottom:4px;background:rgba(0,0,0,.7);color:#fff;font-size:11px;padding:1px 6px;border-radius:4px;">${i+1}</div>
+    <button onclick="catImpRemoverImg(${i})" title="Remover" style="position:absolute;top:3px;right:3px;width:22px;height:22px;border:none;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;cursor:pointer;font-size:12px;line-height:22px;padding:0;">✕</button>
+  </div>`).join('');
+}
 // Colar (Ctrl+V) e arrastar
 document.addEventListener('paste',e=>{
   const m=document.getElementById('modalCatImp');if(!m||m.style.display==='none')return;
-  const it=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));
-  if(it){e.preventDefault();catImpArquivo(it.getAsFile());}
+  const its=[...(e.clipboardData?.items||[])].filter(i=>i.type.startsWith('image/'));
+  if(its.length){e.preventDefault();its.forEach(i=>catImpArquivo(i.getAsFile()));}
 });
 document.addEventListener('dragover',e=>{if(e.target.closest&&e.target.closest('#catImpDrop'))e.preventDefault();});
-document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#catImpDrop')){e.preventDefault();catImpArquivo(e.dataTransfer.files[0]);}});
+document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#catImpDrop')){e.preventDefault();catImpArquivos(e.dataTransfer.files);}});
 
 // ---------- Gemini ----------
 const _CAT_IMP_PROMPT='Esta imagem é uma tabela de preços de revestimentos cerâmicos enviada pela fábrica. '+
@@ -3373,9 +3384,9 @@ const _CAT_IMP_PROMPT='Esta imagem é uma tabela de preços de revestimentos cer
  'preco = preço como número com ponto decimal (a tabela usa vírgula decimal, ex.: 2,85 -> 2.85). '+
  'Ignore cabeçalhos, totais e linhas cortadas que não dão para ler inteiras. Não invente linhas.';
 
-async function _catGeminiReq(key,model){
+async function _catGeminiReq(key,model,im){
   const body={
-    contents:[{parts:[{text:_CAT_IMP_PROMPT},{inline_data:{mime_type:_catImp.mime,data:_catImp.b64}}]}],
+    contents:[{parts:[{text:_CAT_IMP_PROMPT},{inline_data:{mime_type:im.mime,data:im.b64}}]}],
     generationConfig:{temperature:0,responseMimeType:'application/json',
       responseSchema:{type:'ARRAY',items:{type:'OBJECT',properties:{descricao:{type:'STRING'},formato:{type:'STRING'},preco:{type:'NUMBER'}},required:['descricao','preco']}}}
   };
@@ -3393,12 +3404,12 @@ async function _catGeminiAcharModelo(key){
     .sort((a,b)=>(ver(b)-ver(a))||(/preview/.test(a)-/preview/.test(b))||(a.length-b.length));
   return ms[0]||'';
 }
-async function _catGemini(key){
+async function _catGemini(key,im){
   let model=_catImpLS(CAT_IMP_MODEL)||'gemini-2.5-flash';
-  let r=await _catGeminiReq(key,model);
+  let r=await _catGeminiReq(key,model,im);
   if(r.status===404){
     const novo=await _catGeminiAcharModelo(key);
-    if(novo&&novo!==model){model=novo;_catImpLS(CAT_IMP_MODEL,model);r=await _catGeminiReq(key,model);}
+    if(novo&&novo!==model){model=novo;_catImpLS(CAT_IMP_MODEL,model);r=await _catGeminiReq(key,model,im);}
   }
   if(!r.ok){
     let msg='';try{msg=(await r.json()).error?.message||'';}catch(e){}
@@ -3415,14 +3426,24 @@ async function _catGemini(key){
 
 async function catImpLer(){
   const key=(document.getElementById('catImpKey').value||'').trim();
-  if(!_catImp.b64){showToast('Escolha a imagem primeiro','error');return;}
+  if(!_catImp.imgs.length){showToast('Escolha ao menos uma imagem','error');return;}
   if(!key){showToast('Informe a chave da API Gemini','error');return;}
   _catImpLS(CAT_IMP_KEY,key);
   const btn=document.getElementById('catImpBtnLer');btn.disabled=true;
-  _catImpStatus('⏳ Lendo a tabela... (pode levar até 30 s)');
+  const n=_catImp.imgs.length,falhas=[];let lidos=[];
   try{
-    const lidos=await _catGemini(key);
-    if(!lidos.length)throw new Error('Nenhum produto encontrado na imagem');
+    for(let i=0;i<n;i++){
+      _catImpStatus(`⏳ Lendo imagem ${i+1} de ${n}... (até 30 s cada)`);
+      try{lidos=lidos.concat(await _catGemini(key,_catImp.imgs[i]));}
+      catch(e){
+        if(/Chave da API/.test(e.message||''))throw e;
+        falhas.push('imagem '+(i+1)+': '+(e.message||e));
+      }
+    }
+    // Remove linhas repetidas (mesma linha aparecendo em dois prints)
+    const vistos=new Set();
+    lidos=lidos.filter(l=>{const k=_catImpNorm(l.descricao)+'|'+_catImpFmt(l.formato||l.descricao)+'|'+(Math.round((parseFloat(l.preco)||0)*100));if(vistos.has(k))return false;vistos.add(k);return true;});
+    if(!lidos.length)throw new Error(falhas.length?falhas.join(' | '):'Nenhum produto encontrado nas imagens');
     _catImp.linhas=lidos.map(l=>_catImpCasar(l));
     _catImpMarcarDuplicados();
     _catImpRender();
@@ -3431,7 +3452,7 @@ async function catImpLer(){
     btn.style.display='none';
     document.getElementById('catImpBtnAdd').style.display='';
     document.getElementById('catImpBtnVoltar').style.display='';
-    _catImpStatus('');
+    _catImpStatus(falhas.length?'⚠️ Não foi possível ler: '+falhas.join(' | '):'',!!falhas.length);
   }catch(e){
     _catImpStatus('❌ '+(e.message||e),true);
   }finally{btn.disabled=false;}
@@ -3486,18 +3507,27 @@ function _catImpCasar(l){
 }
 function _catImpMarcarDuplicados(){
   const cont={};_catImp.linhas.forEach(l=>{if(l.cod)cont[l.cod]=(cont[l.cod]||0)+1;});
-  _catImp.linhas.forEach(l=>{if(l.cod&&cont[l.cod]>1&&l.status==='ok')l.status='duvida';});
+  _catImp.linhas.forEach(l=>{if(l.cod&&!l.confirmado&&cont[l.cod]>1&&l.status==='ok')l.status='duvida';});
 }
 function catImpEscolher(i,cod){
-  const l=_catImp.linhas[i];l.cod=cod;l.status=cod?'ok':'nao';
+  const l=_catImp.linhas[i];l.cod=cod;l.confirmado=false;l.status=cod?'ok':'nao';
   _catImpMarcarDuplicados();_catImpRender();
+}
+function catImpConfirmarLinha(i){
+  const l=_catImp.linhas[i];if(!l.cod)return;
+  l.confirmado=true;l.status='ok';_catImpRender();
+}
+function catImpConfirmarTodas(){
+  let n=0;_catImp.linhas.forEach(l=>{if(l.cod&&l.status==='duvida'){l.confirmado=true;l.status='ok';n++;}});
+  _catImpRender();if(n)showToast(n+' item(ns) confirmado(s)','success');
 }
 function _catImpRender(){
   const L=_catImp.linhas;
   const n={ok:0,duvida:0,nao:0};L.forEach(l=>n[l.status]++);
   document.getElementById('catImpResumo').innerHTML=
     `<strong>${L.length}</strong> linhas lidas · <span style="color:var(--success);">✅ ${n.ok} ok</span> · <span style="color:var(--warn);">⚠️ ${n.duvida} conferir</span> · <span style="color:var(--danger);">❌ ${n.nao} sem correspondência</span>`+
-    `<div style="font-size:11px;color:var(--text3);margin-top:4px;">Confira os itens ⚠️ e ❌. Preços em ${_catImp.dest.toUpperCase()}. Linhas em "Ignorar" não entram na lista.</div>`;
+    (n.duvida?` <button class="btn btn-warn" onclick="catImpConfirmarTodas()" style="padding:3px 10px;font-size:11px;margin-left:8px;">✓ Confirmar todos ⚠️</button>`:'')+
+    `<div style="font-size:11px;color:var(--text3);margin-top:4px;">Confira os itens ⚠️ (clique em ✓ quando estiver certo) e ❌. Preços em ${_catImp.dest.toUpperCase()}. Linhas em "Ignorar" não entram na lista.</div>`;
   const ic={ok:'✅',duvida:'⚠️',nao:'❌'};
   const inp='padding:4px 6px;font-size:12px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;color:var(--text);';
   document.getElementById('catImpTabela').innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px;">
@@ -3507,7 +3537,7 @@ function _catImpRender(){
       const opts=l.cands.map(c=>`<option value="${_catImpEsc(c.p.codigo)}" ${c.p.codigo===l.cod?'selected':''}>${_catImpEsc(c.p.nome)} · ${_catImpEsc(c.p.formato||'')} (${_catImpEsc(c.p.codigo)})</option>`).join('');
       const bg=l.status==='ok'?'':l.status==='duvida'?'background:rgba(255,159,67,.08);':'background:rgba(255,107,107,.08);';
       return `<tr style="border-top:1px solid var(--border);${bg}">
-        <td style="padding:6px 4px;">${ic[l.status]}</td>
+        <td style="padding:6px 4px;white-space:nowrap;">${ic[l.status]}${l.status==='duvida'&&l.cod?` <button class="btn btn-warn" onclick="catImpConfirmarLinha(${i})" title="Está correto" style="padding:1px 7px;font-size:11px;">✓</button>`:''}</td>
         <td style="padding:6px 4px;"><div style="font-weight:600;">${_catImpEsc(l.desc)}</div><div style="color:var(--text3);font-size:11px;">${_catImpEsc(l.formato)}</div></td>
         <td style="padding:6px 4px;"><select onchange="catImpEscolher(${i},this.value)" style="width:100%;${inp}"><option value="">— Ignorar —</option>${opts}</select></td>
         <td style="padding:6px 4px;"><input type="number" step="0.01" value="${l.preco}" onchange="_catImp.linhas[${i}].preco=parseFloat(this.value)||0" style="width:72px;${inp}"></td>
