@@ -1,9 +1,9 @@
 // ============================================================
-// offline.js — Faz o Index.html original funcionar fora do
-// Apps Script: substitui `google.script.run` por chamadas fetch
-// para o Web App, com cache automático (IndexedDB + Cache Storage)
-// para uso offline. NENHUMA outra parte do app original precisa
-// mudar — todas as funções continuam com os mesmos nomes.
+// offline.js — Faz o app funcionar fora do Apps Script:
+// substitui `google.script.run` por chamadas fetch para o Web App,
+// com cache automático (IndexedDB + Cache Storage) para uso offline.
+// Os outros arquivos continuam chamando google.script.run normalmente.
+// (O service worker é registrado no <head> do index.html.)
 // ============================================================
 
 // >>> Cole aqui a URL do seu Web App (Implantar > Gerenciar implantações) <<<
@@ -322,7 +322,7 @@ function _extrairIdDrive(url) {
   return '';
 }
 
-// Réplica exata de cnsBuildUrl do index.html — o app monta a URL da foto
+// Réplica exata de cnsBuildUrl (js/consulta.js) — o app monta a URL da foto
 // de formas diferentes dependendo do navegador (Safari/iPad usa lh3.googleusercontent.com
 // primeiro). Por isso cacheamos a MESMA imagem sob TODAS as variações possíveis.
 function _variantesUrlImagem(id) {
@@ -438,6 +438,22 @@ async function forcarSincronizacao() {
     showToastSafe('Ainda restou algo pendente — tente de novo em instantes', 'error');
     texto.textContent = original;
   }
+}
+
+// Botão "Descartar" da faixa de pendências: apaga do dispositivo os pedidos e
+// clientes que ainda não foram enviados (pede confirmação antes).
+async function descartarPendencias() {
+  const filaPedidos = await _filaListar();
+  const filaClientes = await _filaClientesListar();
+  if (!filaPedidos.length && !filaClientes.length) { atualizarBadgeOffline(); return; }
+  const partes = [];
+  if (filaPedidos.length) partes.push(filaPedidos.length + ' pedido(s)');
+  if (filaClientes.length) partes.push(filaClientes.length + ' cliente(s)');
+  if (!confirm('Descartar ' + partes.join(' e ') + ' que ainda não foram enviados?\n\nEles serão apagados deste dispositivo e não poderão ser recuperados.')) return;
+  for (const item of filaPedidos) await _filaRemover(item.id);
+  for (const item of filaClientes) await _filaClienteRemover(item.tempId);
+  await atualizarBadgeOffline();
+  showToastSafe('Pendências descartadas', 'success');
 }
 
 // Sincroniza clientes pendentes primeiro (para trocar o ID temporário pelo
@@ -565,7 +581,6 @@ setInterval(async () => {
 window.addEventListener('DOMContentLoaded', () => {
   _atualizarIndicadorConexao();
   atualizarBadgeOffline();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 
   // Segurança: se o carregamento travar (ex: timeout inesperado), libera o app
   // mesmo assim depois de alguns segundos, em vez de ficar preso na tela de loading.
