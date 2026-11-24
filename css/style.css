@@ -31,6 +31,7 @@
   --radius:8px;
   --radius-sm:6px;
   --font:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --font-titulo:"Syne",var(--font);   /* títulos das abas e barra de abas */
 
   /* Ajustáveis em Configurações > Aparência */
   --fs-navbar:13px;--clr-navbar:var(--text2);
@@ -111,9 +112,10 @@ html[data-theme="light"] .logo-escuro{display:none}
 .topbar-logo img{height:34px;width:auto}
 .tab-nav{display:flex;align-items:stretch;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .tab-nav::-webkit-scrollbar{display:none}
-.tab-btn{padding:0 12px;display:flex;align-items:center;gap:6px;font-family:var(--font);font-weight:500;font-size:var(--fs-navbar);color:var(--clr-navbar);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;flex-shrink:0}
+.tab-btn{padding:0 12px;display:flex;align-items:center;gap:6px;font-family:var(--font-titulo);font-weight:700;font-size:var(--fs-navbar);color:var(--clr-navbar);border:none;background:none;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .tab-btn:hover{color:var(--text)}
-.tab-btn.active{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+/* Linha de destaque desenhada por dentro do botão: nunca é cortada pela borda da barra */
+.tab-btn.active{color:var(--text);box-shadow:inset 0 -2px 0 var(--accent)}
 .tab-count{font-size:11px;color:var(--text3);font-weight:500;font-variant-numeric:tabular-nums}
 .topbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .top-btn{background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);padding:5px 10px;cursor:pointer;font-family:var(--font);font-size:12px;white-space:nowrap}
@@ -133,7 +135,7 @@ html[data-theme="light"] .logo-escuro{display:none}
 @media(max-width:600px){.main{padding:16px 12px 32px}}
 
 .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-.page-title{font-size:20px;font-weight:600;color:var(--text)}
+.page-title{font-family:var(--font-titulo);font-size:22px;font-weight:800;color:var(--text)}
 .page-sub{font-size:13px;color:var(--text3);margin-top:2px}
 
 .section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px}
