@@ -1,6 +1,6 @@
 // ============================================================
 // LISTA DE PREÇOS > PROMOÇÕES
-// Listas promocionais da fábrica (nome + frete + itens), uma por tipo de frete.
+// Listas promocionais da fábrica (nome + fretes + itens); uma lista pode valer para vários fretes.
 // Situação ATIVA/FINALIZADA é trocada manualmente.
 // A importação usa a mesma tela do catálogo (catImpAbrir('promo')).
 // Dados na aba "Promocoes" da planilha de produtos (Promocoes.gs),
@@ -26,6 +26,8 @@ function promoCarregar(){
 }
 
 const _promoAtiva=p=>String(p.status||'ATIVA').toUpperCase()!=='FINALIZADA';
+// Uma lista pode valer para vários fretes: gravado como "FOB Imbituba, FOB Itajaí"
+const _promoFretes=p=>String(p.frete||'').split(',').map(s=>s.trim()).filter(Boolean);
 
 // Preço da tabela padrão no mesmo frete (Itapoá leva o acréscimo, como no pedido)
 function _promoBase(prod,frete){
@@ -40,7 +42,7 @@ function promoRender(){
   const verFinalizadas=document.getElementById('promo-finalizadas').checked;
   const frete=document.getElementById('promo-filtro-frete').value;
   document.getElementById('promoCount').textContent=_promoCarregado?PROMOCOES.filter(_promoAtiva).length:'—';
-  const lista=PROMOCOES.filter(p=>(verFinalizadas||_promoAtiva(p))&&(!frete||p.frete===frete))
+  const lista=PROMOCOES.filter(p=>(verFinalizadas||_promoAtiva(p))&&(!frete||_promoFretes(p).includes(frete)))
     .sort((a,b)=>_promoAtiva(b)-_promoAtiva(a));
   if(!lista.length){
     el.innerHTML=`<div class="pedidos-empty"><strong>Nenhuma promoção ${verFinalizadas?'cadastrada':'ativa'}${frete?' para '+esc(frete):''}</strong>Clique em "Nova promoção" e envie o print da lista da fábrica.</div>`;
@@ -48,9 +50,12 @@ function promoRender(){
   }
   el.innerHTML=lista.map(p=>{
     const ativa=_promoAtiva(p);
+    const fretes=_promoFretes(p);
+    // Compara com o frete do filtro; sem filtro, com o primeiro frete da lista
+    const fBase=frete||fretes[0]||'';
     const linhas=(p.itens||[]).map(it=>{
       const prod=PRODUCTS.find(x=>x.codigo===it.codigo);
-      const base=_promoBase(prod,p.frete);
+      const base=_promoBase(prod,fBase);
       const pr=parseFloat(it.preco)||0;
       const dif=base&&pr?Math.round((pr/base-1)*1000)/10:null;
       return `<tr>
@@ -65,13 +70,13 @@ function promoRender(){
       <div class="section-header">
         <div class="section-title">${esc(p.nome)}</div>
         <span class="chip ${ativa?'chip-ativa':'chip-finalizada'}">${ativa?'ATIVA':'FINALIZADA'}</span>
-        <span class="chip">${esc(p.frete)}</span>
+        ${fretes.map(f=>`<span class="chip">${esc(f)}</span>`).join(' ')}
         <span class="section-badge">${(p.itens||[]).length} item(ns)</span>
         <button class="btn btn-sm btn-secondary" onclick="promoStatus('${esc(p.id)}')">${ativa?'Finalizar':'Reativar'}</button>
         <button class="btn btn-sm btn-danger" onclick="promoExcluir('${esc(p.id)}')">Excluir</button>
       </div>
       <div class="lista-tbl-wrap"><table class="pedidos-table">
-        <thead><tr><th>Código</th><th>Referência</th><th>Formato</th><th>Promoção</th><th>Tabela padrão</th><th>Diferença</th></tr></thead>
+        <thead><tr><th>Código</th><th>Referência</th><th>Formato</th><th>Promoção</th><th>Tabela padrão${fretes.length>1?' ('+esc(fBase)+')':''}</th><th>Diferença</th></tr></thead>
         <tbody>${linhas}</tbody>
       </table></div>
     </div>`;
@@ -81,9 +86,9 @@ function promoRender(){
 // Chamada pelo botão "Salvar promoção" da tela de importação
 function promoSalvar(sel){
   const nome=document.getElementById('promoNome').value.trim();
-  const frete=document.getElementById('promoFrete').value;
+  const frete=[...document.querySelectorAll('#promoFrete .cat-toggle.active')].map(b=>b.textContent.trim()).join(', ');
   if(!nome){showToast('Informe o nome da promoção','error');document.getElementById('promoNome').focus();return;}
-  if(!frete){showToast('Informe o frete dos preços da lista','error');document.getElementById('promoFrete').focus();return;}
+  if(!frete){showToast('Marque ao menos um frete','error');return;}
   const promo={nome,frete,status:'ATIVA',itens:sel.map(l=>({codigo:l.cod,descricao:l.desc,preco:l.preco}))};
   const btn=document.getElementById('catImpBtnAdd');btn.disabled=true;
   google.script.run.withSuccessHandler(r=>{

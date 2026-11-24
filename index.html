@@ -811,10 +811,15 @@ if ('serviceWorker' in navigator) {
     <div class="modal-body">
       <div id="catImpPromo" class="promo-campos" style="display:none;">
         <div class="promo-nome"><label for="promoNome">Nome da promoção</label><input type="text" id="promoNome" placeholder="Ex.: Oferta Novembro 55x55"></div>
-        <div><label for="promoFrete">Preços da lista são</label><select id="promoFrete">
-          <option value="">Selecione...</option>
-          <option>FOB Imbituba</option><option>FOB Itajaí</option><option>FOB Navegantes</option><option>FOB Itapoá</option><option>EXW</option>
-        </select></div>
+        <div><div class="opt-titulo">Preços da lista valem para <span class="hint">(marque um ou mais)</span></div>
+          <div class="opt-linha" id="promoFrete">
+            <button class="cat-toggle" onclick="this.classList.toggle('active')">FOB Imbituba</button>
+            <button class="cat-toggle" onclick="this.classList.toggle('active')">FOB Itajaí</button>
+            <button class="cat-toggle" onclick="this.classList.toggle('active')">FOB Navegantes</button>
+            <button class="cat-toggle" onclick="this.classList.toggle('active')">FOB Itapoá</button>
+            <button class="cat-toggle" onclick="this.classList.toggle('active')">EXW</button>
+          </div>
+        </div>
       </div>
       <div id="catImpEtapa1">
         <label id="catImpDrop" class="imp-drop">

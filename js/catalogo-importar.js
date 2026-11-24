@@ -16,7 +16,7 @@ function catImpAbrir(modo){
   document.getElementById('catImpDestWrap').style.display=promo?'none':'';
   document.getElementById('catImpTitulo').textContent=promo?'Nova promoção':'Importar produtos de imagem';
   document.getElementById('catImpBtnAdd').textContent=promo?'Salvar promoção':'Adicionar à lista';
-  if(promo)['promoNome','promoFrete'].forEach(id=>document.getElementById(id).value='');
+  if(promo){document.getElementById('promoNome').value='';document.querySelectorAll('#promoFrete .cat-toggle').forEach(b=>b.classList.remove('active'));}
   document.getElementById('catImpKey').value=_catImpLS(CAT_IMP_KEY);
   _catImpThumbs();
   catImpDest(_catImp.dest);
