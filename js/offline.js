@@ -17,7 +17,8 @@ const CACHEABLE_READS = {
   getProdutos: '{"success":true,"data":[]}',
   getClientes: '{"success":true,"data":[]}',
   getPortosDestino: '{"success":true,"data":[]}',
-  getConfig: '{"success":true,"data":{"acrescimo_itapoa":0.10,"acrescimo_europallet":0.15}}'
+  getConfig: '{"success":true,"data":{"acrescimo_itapoa":0.10,"acrescimo_europallet":0.15}}',
+  getPromocoes: '{"success":true,"data":[]}'
 };
 
 // ============================================================
@@ -141,7 +142,7 @@ async function _pegarIdReal(tempId) {
 // Google já tiver processado a primeira tentativa, repetir DUPLICARIA o
 // registro. Excluir/editar/configurar são seguras de repetir (aplicar de
 // novo o mesmo resultado não duplica nada), por isso ficam de fora daqui.
-const _FUNCOES_ESCRITA = ['salvarPedido', 'atualizarPedido', 'salvarCliente', 'gerarPdfESalvar'];
+const _FUNCOES_ESCRITA = ['salvarPedido', 'atualizarPedido', 'salvarCliente', 'gerarPdfESalvar', 'salvarPromocao'];
 
 async function _rpcCallOnce(fn, args, timeoutMs) {
   const controller = new AbortController();

@@ -415,8 +415,13 @@ if ('serviceWorker' in navigator) {
   <div class="tab-content" id="tab-lista">
     <div class="main">
       <div class="page-head">
-        <div><h1 class="page-title">Lista de preços</h1><div class="page-sub">Todos os códigos, referências e preços de um formato.</div></div>
+        <div><h1 class="page-title">Lista de preços</h1><div class="page-sub" id="lista-sub">Todos os códigos, referências e preços de um formato.</div></div>
+        <div class="opt-linha">
+          <button class="cat-toggle active" id="lista-modo-padrao" onclick="listaModo('padrao')">Tabela padrão</button>
+          <button class="cat-toggle" id="lista-modo-promo" onclick="listaModo('promo')">Promoções <span class="tab-count" id="promoCount">—</span></button>
+        </div>
       </div>
+      <div id="lista-padrao">
       <div class="lista-filtros">
         <div><label for="lista-formato">Formato</label><select id="lista-formato" onchange="listaRender()"><option value="">Selecione...</option></select></div>
         <div class="checks">
@@ -433,6 +438,18 @@ if ('serviceWorker' in navigator) {
       </div>
       <div id="lista-empty">
         <div class="pedidos-empty"><strong>Selecione um formato</strong>A lista de produtos aparece aqui.</div>
+      </div>
+      </div>
+      <div id="lista-promo" class="hidden">
+        <div class="lista-filtros">
+          <div><label for="promo-filtro-frete">Frete</label><select id="promo-filtro-frete" onchange="promoRender()">
+            <option value="">Todos</option>
+            <option>FOB Imbituba</option><option>FOB Itajaí</option><option>FOB Navegantes</option><option>FOB Itapoá</option><option>EXW</option>
+          </select></div>
+          <div class="checks"><label class="check-inline"><input type="checkbox" id="promo-finalizadas" onchange="promoRender()"> Mostrar finalizadas</label></div>
+          <button class="btn btn-primary" onclick="catImpAbrir('promo')">Nova promoção (importar de imagem)</button>
+        </div>
+        <div id="promo-lista"></div>
       </div>
     </div>
   </div>
@@ -788,10 +805,17 @@ if ('serviceWorker' in navigator) {
 <div class="modal-backdrop" id="modalCatImp" style="display:none;">
   <div class="modal modal-xl">
     <div class="modal-header">
-      <div><div class="modal-title">Importar produtos de imagem</div><div class="modal-sub">Envie um ou mais prints da tabela da fábrica. O Gemini lê os produtos e preços.</div></div>
+      <div><div class="modal-title" id="catImpTitulo">Importar produtos de imagem</div><div class="modal-sub">Envie um ou mais prints da tabela da fábrica. O Gemini lê os produtos e preços.</div></div>
       <button class="btn btn-secondary btn-sm" onclick="catImpFechar()">Fechar</button>
     </div>
     <div class="modal-body">
+      <div id="catImpPromo" class="promo-campos" style="display:none;">
+        <div class="promo-nome"><label for="promoNome">Nome da promoção</label><input type="text" id="promoNome" placeholder="Ex.: Oferta Novembro 55x55"></div>
+        <div><label for="promoFrete">Preços da lista são</label><select id="promoFrete">
+          <option value="">Selecione...</option>
+          <option>FOB Imbituba</option><option>FOB Itajaí</option><option>FOB Navegantes</option><option>FOB Itapoá</option><option>EXW</option>
+        </select></div>
+      </div>
       <div id="catImpEtapa1">
         <label id="catImpDrop" class="imp-drop">
           <input type="file" accept="image/*" multiple onchange="catImpArquivos(this.files);this.value='';">
@@ -799,14 +823,14 @@ if ('serviceWorker' in navigator) {
         </label>
         <div id="catImpThumbs"></div>
         <div class="imp-opcoes">
-          <div>
+          <div id="catImpDestWrap">
             <div class="opt-titulo">Preço da tabela vai para</div>
             <div class="opt-linha">
               <button class="cat-toggle active" id="catImpDestFob" onclick="catImpDest('fob')">FOB</button>
               <button class="cat-toggle" id="catImpDestExw" onclick="catImpDest('exw')">EXW</button>
             </div>
           </div>
-          <div>
+          <div id="catImpLimparWrap">
             <div class="opt-titulo">Lista atual</div>
             <button class="cat-toggle active" id="catImpLimpar" onclick="this.classList.toggle('active')">Limpar antes de importar</button>
           </div>
@@ -844,6 +868,7 @@ if ('serviceWorker' in navigator) {
 <script src="js/config.js"></script>
 <script src="js/catalogo.js"></script>
 <script src="js/catalogo-importar.js"></script>
+<script src="js/promocoes.js"></script>
 <script src="js/catalogo-pdf.js"></script>
 </body>
 </html>

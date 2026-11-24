@@ -496,3 +496,9 @@ tr:has(.ped-cb:checked) td{background:var(--accent-soft)!important}
 .imp-tabela td{padding:6px;border-bottom:1px solid var(--border);vertical-align:middle}
 .imp-tabela tr.imp-duvida td{background:var(--warn-soft)}
 .imp-tabela tr.imp-nao td{background:var(--danger-soft)}
+/* Promoções (Lista de preços) */
+.promo-campos{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:12px;margin-bottom:14px}
+@media(max-width:600px){.promo-campos{grid-template-columns:1fr}}
+.promo-finalizada .lista-tbl-wrap{opacity:.55}
+.chip-ativa{background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success)}
+.chip-finalizada{background:var(--danger-soft);color:var(--danger)}

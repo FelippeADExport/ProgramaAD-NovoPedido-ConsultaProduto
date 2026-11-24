@@ -6,9 +6,17 @@ let _catImp={imgs:[],dest:'fob',linhas:[]};
 
 function _catImpLS(k,v){try{if(v===undefined)return localStorage.getItem(k)||'';localStorage.setItem(k,v);}catch(e){return '';}}
 
-function catImpAbrir(){
+// modo 'promo' = mesma tela, mas salva como lista promocional (aba Lista de preços)
+function catImpAbrir(modo){
   if(!PRODUCTS.length){showToast('Produtos ainda não carregados','error');return;}
-  _catImp={imgs:[],dest:_catImp.dest||'fob',linhas:[]};
+  _catImp={imgs:[],dest:_catImp.dest||'fob',linhas:[],modo:modo||'catalogo'};
+  const promo=_catImp.modo==='promo';
+  document.getElementById('catImpPromo').style.display=promo?'':'none';
+  document.getElementById('catImpLimparWrap').style.display=promo?'none':'';
+  document.getElementById('catImpDestWrap').style.display=promo?'none':'';
+  document.getElementById('catImpTitulo').textContent=promo?'Nova promoção':'Importar produtos de imagem';
+  document.getElementById('catImpBtnAdd').textContent=promo?'Salvar promoção':'Adicionar à lista';
+  if(promo)['promoNome','promoFrete'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('catImpKey').value=_catImpLS(CAT_IMP_KEY);
   _catImpThumbs();
   catImpDest(_catImp.dest);
@@ -230,7 +238,7 @@ function _catImpRender(){
   document.getElementById('catImpResumo').innerHTML=
     `<strong>${L.length}</strong> linhas lidas · <span class="st-ok">✅ ${n.ok} ok</span> · <span class="st-duvida">⚠️ ${n.duvida} conferir</span> · <span class="st-nao">❌ ${n.nao} sem correspondência</span>`+
     (n.duvida?` <button class="btn btn-secondary btn-xs" onclick="catImpConfirmarTodas()">Confirmar todos</button>`:'')+
-    `<div class="hint">Confira os itens ⚠️ (clique em ✓ quando estiver certo) e ❌. Preços em ${_catImp.dest.toUpperCase()}. Linhas em "Ignorar" não entram na lista.</div>`;
+    `<div class="hint">Confira os itens ⚠️ (clique em ✓ quando estiver certo) e ❌. ${_catImp.modo==='promo'?'':'Preços em '+_catImp.dest.toUpperCase()+'.'} Linhas em "Ignorar" não entram na lista.</div>`;
   const ic={ok:'✅',duvida:'⚠️',nao:'❌'};
   document.getElementById('catImpTabela').innerHTML=`<table class="imp-tabela">
     <thead><tr><th></th><th>Lido na imagem</th><th>Produto na planilha</th><th>Preço</th><th></th></tr></thead>
@@ -248,6 +256,7 @@ function _catImpRender(){
 function catImpConfirmar(){
   const sel=_catImp.linhas.filter(l=>l.cod);
   if(!sel.length){showToast('Nenhum produto selecionado','error');return;}
+  if(_catImp.modo==='promo'){promoSalvar(sel);return;}
   if(document.getElementById('catImpLimpar').classList.contains('active'))catSelecionados=[];
   const dest=_catImp.dest;let add=0,upd=0;
   sel.forEach(l=>{

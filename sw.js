@@ -2,7 +2,7 @@
 // Arquivos do site: REDE PRIMEIRO (sempre abre a versao nova).
 // O cache so e usado quando estiver offline.
 // Ao criar/renomear arquivos .js/.css, inclua-os em SHELL_FILES e suba o numero do SHELL_CACHE.
-const SHELL_CACHE = 'adexport-shell-v30';
+const SHELL_CACHE = 'adexport-shell-v31';
 const IMG_CACHE = 'adexport-images-v3'; // NAO mudar: js/offline.js grava as fotos neste cache
 const SHELL_FILES = [
   './',
@@ -18,6 +18,7 @@ const SHELL_FILES = [
   './js/config.js',
   './js/catalogo.js',
   './js/catalogo-importar.js',
+  './js/promocoes.js',
   './js/catalogo-pdf.js',
   './manifest.json',
   './icons/logo-claro.png',
