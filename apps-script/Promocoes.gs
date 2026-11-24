@@ -4,7 +4,7 @@
 // COMO INSTALAR (uma vez):
 // 1. No editor do Apps Script, crie um arquivo "Promocoes" e cole este código.
 // 2. No Codigo.gs, acrescente na lista _RPC_PERMITIDAS:
-//      'getPromocoes', 'salvarPromocao', 'alterarStatusPromocao', 'excluirPromocao'
+//      'getPromocoes', 'salvarPromocao', 'alterarStatusPromocao', 'editarPromocao', 'excluirPromocao'
 // 3. Implantar > Gerenciar implantações > editar > Nova versão > Implantar.
 //
 // A aba "Promocoes" é criada sozinha na planilha de produtos.
@@ -73,6 +73,24 @@ function alterarStatusPromocao(id, status) {
     const ids = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
     for (let i = 1; i < ids.length; i++) {
       if (String(ids[i][0]).trim() === id) sh.getRange(i + 1, 4).setValue(status);
+    }
+    return JSON.stringify({ success: true });
+  } catch (e) {
+    return JSON.stringify({ success: false, error: e.message });
+  } finally { lock.releaseLock(); }
+}
+
+// Troca nome e fretes de uma promoção (todas as linhas dela)
+function editarPromocao(id, json) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const d = JSON.parse(json);
+    if (!d.nome || !d.frete) throw new Error('Nome e frete são obrigatórios');
+    const sh = _promoSheet();
+    const ids = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
+    for (let i = 1; i < ids.length; i++) {
+      if (String(ids[i][0]).trim() === id) sh.getRange(i + 1, 2, 1, 2).setValues([[d.nome, d.frete]]);
     }
     return JSON.stringify({ success: true });
   } catch (e) {

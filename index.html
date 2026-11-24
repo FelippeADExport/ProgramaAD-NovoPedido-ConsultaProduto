@@ -446,7 +446,10 @@ if ('serviceWorker' in navigator) {
             <option value="">Todos</option>
             <option>FOB Imbituba</option><option>FOB Itajaí</option><option>FOB Navegantes</option><option>FOB Itapoá</option><option>EXW</option>
           </select></div>
-          <div class="checks"><label class="check-inline"><input type="checkbox" id="promo-finalizadas" onchange="promoRender()"> Mostrar finalizadas</label></div>
+          <div class="checks">
+            <label class="check-inline"><input type="checkbox" id="promo-finalizadas" onchange="promoRender()"> Mostrar finalizadas</label>
+            <label class="check-inline"><input type="checkbox" id="promo-comparar" onchange="promoComparar(this.checked)"> Comparar com tabela padrão</label>
+          </div>
           <button class="btn btn-primary" onclick="catImpAbrir('promo')">Nova promoção (importar de imagem)</button>
         </div>
         <div id="promo-lista"></div>
@@ -856,6 +859,34 @@ if ('serviceWorker' in navigator) {
       <button class="btn btn-secondary" onclick="catImpFechar()">Cancelar</button>
       <button class="btn btn-primary" id="catImpBtnLer" onclick="catImpLer()">Ler imagens</button>
       <button class="btn btn-primary" id="catImpBtnAdd" onclick="catImpConfirmar()" style="display:none;">Adicionar à lista</button>
+    </div>
+  </div>
+</div>
+
+<!-- Editar promoção (Lista de preços > Promoções) -->
+<div class="modal-backdrop" id="modalPromoEd" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Editar promoção</div>
+      <button class="btn btn-secondary btn-sm" onclick="promoEdFechar()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div class="promo-campos">
+        <div><label for="promoEdNome">Nome da promoção</label><input type="text" id="promoEdNome"></div>
+        <div><div class="opt-titulo">Preços da lista valem para <span class="hint">(marque um ou mais)</span></div>
+          <div class="opt-linha" id="promoEdFrete">
+            <button class="cat-toggle" onclick="this.classList.toggle('active')">FOB Imbituba</button>
+            <button class="cat-toggle" onclick="this.classList.toggle('active')">FOB Itajaí</button>
+            <button class="cat-toggle" onclick="this.classList.toggle('active')">FOB Navegantes</button>
+            <button class="cat-toggle" onclick="this.classList.toggle('active')">FOB Itapoá</button>
+            <button class="cat-toggle" onclick="this.classList.toggle('active')">EXW</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="promoEdFechar()">Cancelar</button>
+      <button class="btn btn-primary" id="promoEdBtn" onclick="promoEdSalvar()">Salvar</button>
     </div>
   </div>
 </div>

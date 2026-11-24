@@ -499,5 +499,13 @@ tr:has(.ped-cb:checked) td{background:var(--accent-soft)!important}
 /* Promoções (Lista de preços) */
 .promo-campos{display:grid;gap:12px;margin-bottom:14px}
 .promo-finalizada .lista-tbl-wrap{opacity:.55}
+.promo-head{cursor:pointer;user-select:none}
+.promo-head:hover{background:var(--surface2)}
+.promo-seta{display:inline-block;width:14px;color:var(--text3);transition:transform .15s}
+.promo-fechada .promo-seta{transform:rotate(-90deg)}
+.promo-fechada .promo-head{border-bottom:none}
+.promo-fechada .lista-tbl-wrap{display:none}
+.chip-frete{font-size:13px;padding:4px 10px;border-radius:6px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent)}
+.promo-sem-comparar .col-padrao{display:none}
 .chip-ativa{background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success)}
 .chip-finalizada{background:var(--danger-soft);color:var(--danger)}
